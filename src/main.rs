@@ -25,9 +25,22 @@ const DEFAULT_SIZE: (u32, u32) = (800, 600);
 pub enum KBState { Pressed, Down, Released }
 
 pub trait AppBase {
+	/// actions to take on initialization
+	/// - prepare render pipelines
+	/// - instantialize data objects
 	fn init(&mut self, renderer: &mut Renderer);
+	/// actions to take to update logic
+	/// - respond to inputs
+	/// - state changes
 	fn update(&mut self, inputs: &HashMap<KeyCode, KBState>, frame_delta: &Duration);
-	fn render(&mut self, renderer: &mut Renderer);
+	/// actions to take just before render
+	/// - prepare render objects
+	/// - update colors
+	/// - finalize positions
+	/// - update/upload shader variables
+	fn pre_render(&mut self, renderer: &mut Renderer);
+	/// actions to take after exiting event loop
+	/// - destroy dangling resources
 	fn cleanup(&mut self);
 }
 impl std::fmt::Debug for dyn AppBase {
@@ -176,7 +189,7 @@ impl<'a> ApplicationHandler for WinitApp<'a> {
 				self.app.update(&self.input_cache, &self.frame_delta);
 				if let Some(r) = &mut self.renderer {
 					// run internal render updates
-					self.app.render(r);
+					self.app.pre_render(r);
 					// run render engine actions
 					match r.render() {
 						Ok(_) => (),
