@@ -50,7 +50,7 @@ impl std::fmt::Debug for dyn AppBase {
 }
 
 #[derive(Debug)]
-struct WinitApp<'a> {
+struct WinitApp<'a, T> {
 	// system diagnostics
   window: Option<Arc<Window>>,
 	window_size: (u32, u32),
@@ -65,26 +65,9 @@ struct WinitApp<'a> {
 	// input handling
 	input_cache: HashMap<KeyCode, KBState>,
 	// app state separation
-	app: Box<dyn AppBase>,
+	app: T,
 }
-impl Default for WinitApp<'_> {
-	fn default() -> Self {
-		Self {
-			window: None,
-			window_size: DEFAULT_SIZE,
-			lifetime: Duration::from_millis(0),
-			last_event_frame: Instant::now(),
-			event_frame_delta: Duration::from_millis(0),
-			last_frame: Instant::now(),
-			frame_delta: Duration::from_millis(0),
-			is_render_frame: true,
-			renderer: None,
-			input_cache: HashMap::new(),
-			app: Box::new(App::default()),
-		}
-	}
-}
-impl<'a> ApplicationHandler for WinitApp<'a> {
+impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	// initialization
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		let window_attributes = Window::default_attributes()
@@ -223,7 +206,22 @@ impl<'a> ApplicationHandler for WinitApp<'a> {
 		}
 	}
 }
-impl WinitApp<'_> {
+impl<T: AppBase> WinitApp<'_, T> {
+  fn new(ext_app: T) -> Self {
+    Self {
+			window: None,
+			window_size: DEFAULT_SIZE,
+			lifetime: Duration::from_millis(0),
+			last_event_frame: Instant::now(),
+			event_frame_delta: Duration::from_millis(0),
+			last_frame: Instant::now(),
+			frame_delta: Duration::from_millis(0),
+			is_render_frame: true,
+			renderer: None,
+			input_cache: HashMap::new(),
+			app: ext_app,
+		}
+  }
 	fn cleanup(&mut self) {
 		self.app.cleanup();
 		if let Some(r) = &mut self.renderer {
@@ -235,7 +233,7 @@ impl WinitApp<'_> {
 fn main() {
   let event_loop = EventLoop::new().unwrap();
 	event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now()));
-	let mut app = WinitApp::default();
-	let _ = event_loop.run_app(&mut app);
-	app.cleanup();
+	let mut winit_app = WinitApp::new(App::default());
+	let _ = event_loop.run_app(&mut winit_app);
+	winit_app.cleanup();
 }
