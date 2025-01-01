@@ -3,6 +3,7 @@ use crate::*;
 #[derive(Debug, Default)]
 pub struct App {
   fps: f32,
+  pipelines: Vec<RPipelineId>,
 }
 impl AppBase for App {
   fn init(&mut self, _renderer: &mut Renderer) {
@@ -16,5 +17,8 @@ impl AppBase for App {
     if sys.m_inputs.left == MKBState::Down {
       println!("Mouse State: {:?} -> {:?}", sys.m_inputs.pos_delta, sys.m_inputs.position);
     }
+  }
+  fn pre_render(&mut self, renderer: &mut Renderer) -> &Vec<RPipelineId> {
+    &self.pipelines
   }
 }

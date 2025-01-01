@@ -1,67 +1,77 @@
+use std::fs;
+use std::path::Path;
 use std::sync::Arc;
 use std::num::NonZeroU64;
-use std::path::Path;
 
-use image::{ImageReader, DynamicImage, GenericImageView};
 use winit::window::Window;
-
+use image::{ImageReader, DynamicImage, GenericImageView};
 use wgpu::*;
+
 use super::*;
 
+// -- PRIMARY RENDERER INTERFACE --
 #[derive(Debug)]
 pub struct Renderer<'a> {
-  win_surface: Surface<'a>,
-  surface_format: TextureFormat,
-  device: Device,
-  queue: Queue,
-  pub config: SurfaceConfiguration,
-  msaa: Texture,
-  zbuffer: Texture,
-  limits: Limits,
-  default_cam: RCamera,
-  // configurable
-  pub clear_color: Color,
+  surface: wgpu::Surface<'a>,
+  surface_format: wgpu::TextureFormat,
+  device: wgpu::Device,
+  queue: wgpu::Queue,
+  pub config: wgpu::SurfaceConfiguration,
+  msaa: wgpu::Texture,
+  zbuffer: wgpu::Texture,
+  limits: wgpu::Limits,
+  pub default_cam: RCamera,
+  pub clear_color: wgpu::Color,
   pub pipelines: Vec<RPipeline>,
   pub textures: Vec<wgpu::Texture>,
+  font_cache: Option<Vec<u8>>,
 }
+
 impl<'a> Renderer<'a> {
   // Creating some of the wgpu types requires async code
-  pub async fn new(window: Arc<Window>) -> Self {
+  pub async fn new(window: Arc<Window>) -> Renderer<'a> {
     let size = window.inner_size();
 
     // The instance is a handle to our GPU
-    let instance = Instance::new(InstanceDescriptor {
-      backends: Backends::PRIMARY,
+    // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+      backends: wgpu::Backends::PRIMARY,
       ..Default::default()
     });
-    // instantiate surface for window
-    let win_surface = instance.create_surface(window).unwrap();
+
+    let surface = instance.create_surface(Arc::clone(&window)).unwrap();
 
     // handle for graphics card
-    let adapter = instance.request_adapter(&RequestAdapterOptions {
-      power_preference: PowerPreference::default(),
-      compatible_surface: Some(&win_surface),
-      force_fallback_adapter: false,
-    }).await.unwrap();
+    let adapter = instance.request_adapter(
+      &wgpu::RequestAdapterOptions {
+          power_preference: wgpu::PowerPreference::default(),
+          compatible_surface: Some(&surface),
+          force_fallback_adapter: false,
+      },
+    ).await.unwrap();
 
     // grab device & queue from adapter
     let (device, queue) = adapter.request_device(
-      &DeviceDescriptor {
-        required_features: Features::POLYGON_MODE_LINE | Features::POLYGON_MODE_POINT,
-        required_limits: { Limits::default() },
+      &wgpu::DeviceDescriptor {
+        required_features: wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::POLYGON_MODE_POINT,
+        required_limits: { wgpu::Limits::default() },
         label: None,
         memory_hints: MemoryHints::Performance,
       },
       None, // Trace path
     ).await.unwrap();
 
-    let surface_caps = win_surface.get_capabilities(&adapter);
+    let surface_caps = surface.get_capabilities(&adapter);
+    // Shader code in this tutorial assumes an sRGB surface texture. Using a different
+    // one will result in all the colors coming out darker. If you want to support non
+    // sRGB surfaces, you'll need to account for that when drawing to the frame.
     let surface_format = surface_caps.formats.iter()
-      .find(|f| f.is_srgb())
       .copied()
+      .filter(|f| f.is_srgb())
+      .next()
       .unwrap_or(surface_caps.formats[0]);
-    let config = SurfaceConfiguration {
-      usage: TextureUsages::RENDER_ATTACHMENT,
+    let config = wgpu::SurfaceConfiguration {
+      usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
       format: surface_format,
       width: size.width,
       height: size.height,
@@ -101,27 +111,31 @@ impl<'a> Renderer<'a> {
       view_formats: &[]
     });
 
+    // create default camera setup
+    let default_cam = RCamera::new_ortho(0.0, 1000.0);
+
     return Self {
-      win_surface,
+      surface,
       surface_format,
       device,
       queue,
       config,
+      pipelines: Vec::new(),
+      textures: Vec::new(),
       msaa,
       zbuffer,
       limits: Limits::default(),
-      default_cam: RCamera::new_ortho(0.0, 1000.0),
-      clear_color: Color::BLACK,
-      pipelines: Vec::new(),
-      textures: Vec::new(),
+      clear_color: Color { r: 0.01, g: 0.01, b: 0.02, a: 1.0 },
+      default_cam,
+      font_cache: None,
     };
   }
-  // update surface/surface textures on resize
+
   pub fn resize(&mut self, width: u32, height: u32) {
     if width > 0 && height > 0 {
       self.config.width = width;
       self.config.height = height;
-      self.win_surface.configure(&self.device, &self.config);
+      self.surface.configure(&self.device, &self.config);
 
       let texture_size = wgpu::Extent3d {
         width,
@@ -158,52 +172,26 @@ impl<'a> Renderer<'a> {
       self.zbuffer = zbuffer;
     }
   }
-  // exposed render method
-  pub fn render(&mut self) -> Result<(), SurfaceError> {
-    let output = self.win_surface.get_current_texture()?;
-    let target = output.texture.create_view(&TextureViewDescriptor::default());
-    let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
-      label: Some("Render Encoder"),
-    });
-    // separate encoding to handle borrow checking
-    self.render_impl(&mut encoder, &target);
-    self.queue.submit(std::iter::once(encoder.finish()));
-    output.present();
-    Ok(())
+
+  pub fn set_clear_color(&mut self, r: f64, g: f64, b:f64, a:f64) {
+    self.clear_color.r = r;
+    self.clear_color.g = g;
+    self.clear_color.b = b;
+    self.clear_color.a = a;
   }
-  // core render actions to feed into encoder
-  fn render_impl(&mut self, encoder: &mut CommandEncoder, target: &TextureView) {
-    let view = self.msaa.create_view(&TextureViewDescriptor::default());
-    let zbuffer_view = self.zbuffer.create_view(&TextureViewDescriptor::default());
-    let _ = encoder.begin_render_pass(&RenderPassDescriptor {
-      label: Some("Primary Render Pass"),
-      color_attachments: &[Some(RenderPassColorAttachment {
-        view: &view, // render onto MSAA texture
-        resolve_target: Some(target), // copy MSAA output onto target
-        ops: Operations {
-          load: LoadOp::Clear(self.clear_color),
-          store: StoreOp::Store,
-        }
-      })],
-      depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-        view: &zbuffer_view,
-        depth_ops: Some(Operations {
-          load: LoadOp::Clear(1.0),
-          store: StoreOp::Store
-        }),
-        stencil_ops: None,
-      }),
-      ..Default::default()
-    });
+
+  pub fn load_font(&mut self, font_path: &str) {
+    match fs::read(font_path) {
+      Ok(f) => {
+        self.font_cache = Some(f);
+      }
+      Err(_) => {
+        println!("Err: Could not open font file");
+      }
+    };
   }
-  // create new texture and add it to the textures collection
-  pub fn add_texture(
-    &mut self,
-    width: u32,
-    height: u32,
-    texture_path: Option<&Path>,
-    use_device_format: bool
-  ) -> RId {
+
+  pub fn add_texture(&mut self, width: u32, height: u32, texture_path: Option<&Path>, use_device_format: bool) -> RTextureId {
     let id = self.textures.len();
     let mut texture_size = Extent3d { width, height, depth_or_array_layers: 1 };
     let mut texture_data: Option<DynamicImage> = None;
@@ -260,11 +248,11 @@ impl<'a> Renderer<'a> {
     }
     // add to cache
     self.textures.push(texture);
-    RId::texture(id)
+    RTextureId(id)
   }
-  // update image on texture
-  pub fn update_texture(&mut self, texture_id: u32, texture_path: &Path) {
-    let texture = &mut self.textures[texture_id as usize];
+
+  pub fn update_texture(&mut self, texture_id: RTextureId, texture_path: &Path) {
+    let texture = &mut self.textures[texture_id.0];
     match ImageReader::open(texture_path) {
       Ok(img_file) => match img_file.decode() {
         Ok(img_data) => {
@@ -302,9 +290,9 @@ impl<'a> Renderer<'a> {
       }
     }
   }
-  // re-create texture with new size
-  pub fn resize_texture(&mut self, texture_id: u32, pipeline_id: Option<u32>, width: u32, height: u32) {
-    let old_texture = &mut self.textures[texture_id as usize];
+
+  pub fn update_texture_size(&mut self, texture_id: RTextureId, pipeline_id: Option<RPipelineId>, width: u32, height: u32) {
+    let old_texture = &mut self.textures[texture_id.0];
 
     // make new texture
     let texture_size = Extent3d { width, height, depth_or_array_layers: 1 };
@@ -319,22 +307,22 @@ impl<'a> Renderer<'a> {
       view_formats: &[]
     });
     old_texture.destroy();
-    self.textures[texture_id as usize] = new_texture;
+    self.textures[texture_id.0] = new_texture;
 
     // update bind group
     if let Some(p_id) = pipeline_id {
       let new_bind_id = {
-        let pipeline = &self.pipelines[p_id as usize];
+        let pipeline = &self.pipelines[p_id.0];
         let pipe = &pipeline.pipe;
-        self.build_bind_group0(pipe, pipeline.max_obj_count, Some(texture_id), None, pipeline.vertex_type, pipeline.max_joints_count) // TODO: handle resizing second texture
+        self.add_bind_group0(pipe, pipeline.max_obj_count, Some(texture_id), None, pipeline.vertex_type, pipeline.max_joints_count) // TODO: handle resizing second texture
       };
-      let pipeline = &mut self.pipelines[p_id as usize];
+      let pipeline = &mut self.pipelines[p_id.0];
       pipeline.bind_group0 = new_bind_id;
     }
   }
-  // create new render pipeline and add it to pipeline collection
-  pub fn add_pipeline(&mut self, setup: RPipelineSetup) -> RId {
-    let id = self.pipelines.len();
+
+  pub fn add_pipeline(&mut self, setup: RPipelineSetup) -> RPipelineId {
+    let id: usize = self.pipelines.len();
 
     // translate cullmode
     let cull_mode: Option<Face> = match setup.cull_mode {
@@ -342,10 +330,11 @@ impl<'a> Renderer<'a> {
       2 => Some(Face::Front),
       _ => None
     };
+
     // translate polygon mode
     let (polygon_mode, topology): (PolygonMode, PrimitiveTopology) = match setup.poly_mode {
-      6 => (PolygonMode::Line, PrimitiveTopology::LineList),
-      7 => (PolygonMode::Point, PrimitiveTopology::PointList),
+      1 => (PolygonMode::Line, PrimitiveTopology::LineList),
+      2 => (PolygonMode::Point, PrimitiveTopology::PointList),
       _ => (PolygonMode::Fill, PrimitiveTopology::TriangleList),
     };
 
@@ -467,13 +456,13 @@ impl<'a> Renderer<'a> {
       layout: Some(&pipeline_layout),
       vertex: VertexState {
         module: &shader_mod,
-        entry_point: setup.vertex_fn,
+        entry_point: Some(setup.vertex_fn),
         buffers: &[vertex_layout],
         compilation_options: PipelineCompilationOptions::default(),
       },
       fragment: Some(FragmentState{
         module: &shader_mod,
-        entry_point: setup.fragment_fn,
+        entry_point: Some(setup.vertex_fn),
         targets: &[Some(ColorTargetState{
           format: self.surface_format,
           blend: Some(BlendState { 
@@ -513,11 +502,12 @@ impl<'a> Renderer<'a> {
       multiview: None,
       cache: None,
     });
+
     // build bind groups
-    let bind_group0: RBindGroup = self.build_bind_group0(&pipeline, setup.max_obj_count, setup.texture1_id, setup.texture2_id, setup.vertex_type, setup.max_joints_count);
+    let bind_group0: RBindGroup = self.add_bind_group0(&pipeline, setup.max_obj_count, setup.texture1_id, setup.texture2_id, setup.vertex_type, setup.max_joints_count);
     let mut bind_group1: Option<RBindGroup> = None;
     if setup.uniforms.len() > 0 {
-      bind_group1 = Some(self.build_bind_group1(&pipeline, setup.max_obj_count, setup.uniforms));
+      bind_group1 = Some(self.add_bind_group1(&pipeline, setup.max_obj_count, setup.uniforms));
     }
     // add to cache
     let pipe = RPipeline {
@@ -530,14 +520,14 @@ impl<'a> Renderer<'a> {
       bind_group1,
     };
     self.pipelines.push(pipe);
-    RId::pipeline(id)
+    RPipelineId(id)
   }
-  // part of pipeline build process (predefined uniforms)
-  fn build_bind_group0(
+
+  fn add_bind_group0(
     &self, pipeline: &RenderPipeline,
     max_obj_count: usize,
-    texture1: Option<u32>,
-    texture2: Option<u32>,
+    texture1: Option<RTextureId>,
+    texture2: Option<RTextureId>,
     vertex_type: u8,
     max_joints: u32,
   ) -> RBindGroup {
@@ -568,12 +558,12 @@ impl<'a> Renderer<'a> {
       view_formats: &[]
     });
     if let Some(tx_id) = texture1 {
-      texture1_view = self.textures[tx_id as usize].create_view(&TextureViewDescriptor::default());
+      texture1_view = self.textures[tx_id.0].create_view(&TextureViewDescriptor::default());
     } else {
       texture1_view = ftexture.create_view(&TextureViewDescriptor::default());
     }
     if let Some(tx_id) = texture2 {
-      texture2_view = self.textures[tx_id as usize].create_view(&TextureViewDescriptor::default());
+      texture2_view = self.textures[tx_id.0].create_view(&TextureViewDescriptor::default());
     } else {
       texture2_view = ftexture.create_view(&TextureViewDescriptor::default());
     }
@@ -625,7 +615,7 @@ impl<'a> Renderer<'a> {
         })
       });
     }
-
+    
     // create bind group
     let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
       label: Some("bind-group-0"),
@@ -643,8 +633,8 @@ impl<'a> Renderer<'a> {
       entries: output_entries
     }
   }
-  // part of pipeline build process (custom uniforms)
-  fn build_bind_group1(
+
+  fn add_bind_group1(
     &self,
     pipeline: &RenderPipeline,
     max_obj_count: usize,
@@ -653,7 +643,6 @@ impl<'a> Renderer<'a> {
     let min_stride = self.limits.min_uniform_buffer_offset_alignment;
     let mut bind_entries: Vec<Buffer> = Vec::new();
     let mut bind_desc: Vec<BindGroupEntry> = Vec::new();
-    // build bind entries for uniforms
     for i in 0..uniforms.len() {
       let size = min_stride * max_obj_count as u32;
       let label = "custom-uniform".to_owned() + &i.to_string();
@@ -665,7 +654,6 @@ impl<'a> Renderer<'a> {
       });
       bind_entries.push(entry);
     }
-    // build bind_descriptors for uniforms
     for (i, u) in uniforms.iter().enumerate() {
       let desc = BindGroupEntry {
         binding: i as u32,
@@ -686,9 +674,25 @@ impl<'a> Renderer<'a> {
       entries: bind_entries
     }
   }
-  // add vertex data for object to be rendered
-  pub fn add_object(&mut self, obj_data: RObjectSetup) -> RId {
-    let pipe = &mut self.pipelines[obj_data.pipeline_id];
+
+  pub fn add_overlay_pipeline(&mut self) -> (RTextureId, RPipelineId) {
+    // build full screen texture
+    let texture_id = self.add_texture(self.config.width, self.config.height, None, true);
+    // build render pipeline
+    let pipeline_id = self.add_pipeline(RPipelineSetup {
+      shader: include_str!("../embed_assets/text.wgsl"),
+      texture1_id: Some(texture_id),
+      ..Default::default()
+    });
+    // build object
+    let (rect_data, rect_i) = Primitives::rect_indexed(2.0, 2.0, 0.0);
+    let _rect = Shape::new(self, pipeline_id, rect_data, Some(rect_i));
+    // output fields
+    (texture_id, pipeline_id)
+  }
+
+  pub fn add_object(&mut self, obj_data: RObjectSetup) -> RObjectId {
+    let pipe = &mut self.pipelines[obj_data.pipeline_id.0];
     let id = pipe.objects.len();
 
     // create vertex buffer
@@ -742,15 +746,14 @@ impl<'a> Renderer<'a> {
       instances: 1,
     };
     pipe.objects.push(obj);
-    let object_id = RId::object(obj_data.pipeline_id, id);
-    self.update_object(RObjectUpdate{ id: object_id, ..Default::default()});
-
+    let object_id = RObjectId(obj_data.pipeline_id.0, id);
+    self.update_object(RObjectUpdate{ object_id, ..Default::default()});
     object_id
   }
-  // update object 
+
   pub fn update_object(&mut self, update: RObjectUpdate) {
-    let pipe = &mut self.pipelines[update.id.pipeline];
-    let obj = &mut pipe.objects[update.id.object];
+    let pipe = &mut self.pipelines[update.object_id.0];
+    let obj = &mut pipe.objects[update.object_id.1];
     let cam = match update.camera {
       Some(c) => c,
       None => &self.default_cam
@@ -813,7 +816,151 @@ impl<'a> Renderer<'a> {
       }
     }
   }
-  // destroy all resources
+
+  pub fn render_texture(&mut self, pipeline_ids: &[RPipelineId], target_id: RTextureId, clear_color: Option<[f64;4]>) {
+    let mut clear_clr = self.clear_color;
+    if let Some(c) = clear_color {
+      clear_clr = Color { r:c[0], g:c[1], b:c[2], a:c[3] };
+    }
+    let view = self.msaa.create_view(&TextureViewDescriptor::default());
+    let tx = &self.textures[target_id.0];
+    let target = tx.create_view(&TextureViewDescriptor::default());
+    let zbuffer_view = self.zbuffer.create_view(&TextureViewDescriptor::default());
+    let mut encoder = self.device.create_command_encoder(
+      &wgpu::CommandEncoderDescriptor { label: Some("render-texture-encoder") }
+    );
+    {
+      // new context so ownership of encoder is released after pass finishes
+      let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
+        label: Some("render-pass"),
+        color_attachments: &[Some(RenderPassColorAttachment {
+          view: &view,
+          resolve_target: Some(&target),
+          ops: Operations {
+            load: LoadOp::Clear(clear_clr),
+            store: StoreOp::Store,
+          },
+        })],
+        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+          view: &zbuffer_view,
+          depth_ops: Some(Operations {
+            load: LoadOp::Clear(1.0),
+            store: StoreOp::Store
+          }),
+          stencil_ops: None,
+        }),
+        occlusion_query_set: None,
+        timestamp_writes: None,
+      });
+      // add objects to render
+      for p_id in pipeline_ids {
+        let pipeline = &self.pipelines[p_id.0];
+        for obj in &pipeline.objects {
+          if !obj.visible { continue; }
+          let stride = self.limits.min_uniform_buffer_offset_alignment * obj.pipe_index as u32;
+          pass.set_pipeline(&pipeline.pipe);
+          pass.set_vertex_buffer(0, obj.v_buffer.slice(..));
+          pass.set_bind_group(0, &pipeline.bind_group0.base, &[stride]);
+          if let Some(bind_group1) = &pipeline.bind_group1 {
+            pass.set_bind_group(1, &bind_group1.base, &[stride]);
+          }
+          if let Some(i_buffer) = &obj.index_buffer {
+            pass.set_index_buffer(i_buffer.slice(..), IndexFormat::Uint32);
+            pass.draw_indexed(0..obj.index_count, 0, 0..obj.instances);
+          } else {
+            pass.draw(0..(obj.v_count as u32), 0..obj.instances);
+          }
+        }
+      }
+    }
+    self.queue.submit(std::iter::once(encoder.finish()));
+  }
+
+  pub fn render_str_on_texture(&mut self, texture_id: RTextureId, input: &str, size:f32, color: [u8; 3], base_point: [u32; 2], char_gap: u32) {
+    let texture = &mut self.textures[texture_id.0];
+    // fetch font data
+    if self.font_cache.is_none() { 
+      let font = include_bytes!("../embed_assets/NotoSerifCHB.ttf");
+      self.font_cache = Some(font.to_vec());
+    }
+    let font_data = self.font_cache.as_ref().unwrap();
+    // draw string onto existing texture
+    match draw_str(RStringInputs {
+      queue: &self.queue,
+      texture,
+      font_data,
+      string: input,
+      size,
+      color,
+      base_point,
+      char_gap,
+    }) {
+      Ok(()) => (),
+      Err(e) => {
+        println!("Could not draw str: \"{}\" - {:?}", input, e);
+      }
+    };
+  }
+
+  pub fn render(&mut self, pipeline_ids: &Vec<RPipelineId>) -> Result<(), wgpu::SurfaceError> {
+    let output = self.surface.get_current_texture()?;
+    let view = self.msaa.create_view(&TextureViewDescriptor::default());
+    let target = output.texture.create_view(&TextureViewDescriptor::default());
+    let zbuffer_view = self.zbuffer.create_view(&TextureViewDescriptor::default());
+    let mut encoder = self.device.create_command_encoder(
+      &wgpu::CommandEncoderDescriptor { label: Some("render-encoder") }
+    );
+    {
+      // new context so ownership of encoder is released after pass finishes
+      let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
+        label: Some("render-pass"),
+        color_attachments: &[Some(RenderPassColorAttachment {
+          view: &view,
+          resolve_target: Some(&target),
+          ops: Operations {
+            load: LoadOp::Clear(self.clear_color),
+            store: StoreOp::Store,
+          },
+        })],
+        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+          view: &zbuffer_view,
+          depth_ops: Some(Operations {
+            load: LoadOp::Clear(1.0),
+            store: StoreOp::Store
+          }),
+          stencil_ops: None,
+        }),
+        occlusion_query_set: None,
+        timestamp_writes: None,
+      });
+      // add objects to render
+      for p_id in pipeline_ids {
+        let pipeline = &self.pipelines[p_id.0];
+        for obj in &pipeline.objects {
+          if !obj.visible { continue; }
+          let stride = self.limits.min_uniform_buffer_offset_alignment * obj.pipe_index as u32;
+          pass.set_pipeline(&pipeline.pipe);
+          pass.set_vertex_buffer(0, obj.v_buffer.slice(..));
+          pass.set_bind_group(0, &pipeline.bind_group0.base, &[stride]);
+          if let Some(bind_group1) = &pipeline.bind_group1 {
+            pass.set_bind_group(1, &bind_group1.base, &[stride]);
+          }
+          if let Some(i_buffer) = &obj.index_buffer {
+            pass.set_index_buffer(i_buffer.slice(..), IndexFormat::Uint32);
+            pass.draw_indexed(0..obj.index_count, 0, 0..obj.instances);
+          } else {
+            pass.draw(0..(obj.v_count as u32), 0..obj.instances);
+          }
+        }
+      }
+    }
+
+    self.queue.submit(std::iter::once(encoder.finish()));
+    output.present();
+
+    Ok(())
+  }
+
   pub fn destroy(&mut self, destroy_renderer: bool) {
     // destroy textures
     for tx in &mut self.textures {

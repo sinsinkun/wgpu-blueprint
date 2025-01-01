@@ -473,6 +473,7 @@ checksum = "96a6ac251f4a2aca6b3f91340350eab87ae57c3f127ffeb585e92bd336717991"
 name = "cxgui"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "bytemuck",
  "env_logger",
  "image",

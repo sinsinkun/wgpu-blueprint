@@ -10,3 +10,4 @@ winit = "0.30.7"
 pollster = "0.4.0"
 bytemuck = { version="1.21.0", features=["derive"] }
 image = "0.25.5"
+ab_glyph = "0.2.29"

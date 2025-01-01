@@ -13,7 +13,7 @@ use wgpu::SurfaceError;
 
 // custom components
 mod renderer;
-use renderer::Renderer;
+use renderer::{RPipelineId, Renderer};
 
 mod app;
 use app::App;
@@ -73,8 +73,9 @@ pub trait AppBase {
 	/// - update colors
 	/// - finalize positions
 	/// - update/upload shader variables
-	fn pre_render(&mut self, _renderer: &mut Renderer) {}
-	/// actions to take after exiting event loop
+  /// - output pipeline ids to render
+	fn pre_render(&mut self, renderer: &mut Renderer) -> &Vec<RPipelineId>;
+  /// actions to take after exiting event loop
 	/// - destroy dangling resources
 	fn cleanup(&mut self) {}
 }
@@ -235,9 +236,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
         });
 				if let Some(r) = &mut self.renderer {
 					// run internal render updates
-					self.app.pre_render(r);
+					let pipes = self.app.pre_render(r);
 					// run render engine actions
-					match r.render() {
+					match r.render(pipes) {
 						Ok(_) => (),
 						Err(SurfaceError::Lost | SurfaceError::Outdated) => {
 							println!("Err: surface was lost or outdated. Attempting to re-connect");

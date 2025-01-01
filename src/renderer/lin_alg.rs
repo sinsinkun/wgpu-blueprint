@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub const PI: f32 = 3.14159265;
 
 /**
