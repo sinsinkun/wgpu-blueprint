@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -14,23 +15,46 @@ use wgpu::SurfaceError;
 mod renderer;
 use renderer::Renderer;
 
+mod app;
+use app::App;
+
 const RENDER_FPS_LOCK: Duration = Duration::from_millis(100);
 const DEFAULT_SIZE: (u32, u32) = (800, 600);
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum KBState { Pressed, Down, Released }
+
+pub trait AppBase {
+	fn init(&mut self, renderer: &mut Renderer);
+	fn update(&mut self, inputs: &HashMap<KeyCode, KBState>, frame_delta: &Duration);
+	fn render(&mut self, renderer: &mut Renderer);
+	fn cleanup(&mut self);
+}
+impl std::fmt::Debug for dyn AppBase {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "AppBase{{Unknown}}")
+	}
+}
+
 #[derive(Debug)]
-struct App<'a> {
+struct WinitApp<'a> {
 	// system diagnostics
   window: Option<Arc<Window>>,
 	window_size: (u32, u32),
 	lifetime: Duration,
 	last_frame: Instant,
 	frame_delta: Duration,
+	// render handling
 	last_render_frame: Instant,
 	render_frame_delta: Duration,
 	is_render_frame: bool,
 	renderer: Option<Renderer<'a>>,
+	// input handling
+	input_cache: HashMap<KeyCode, KBState>,
+	// app state separation
+	app: Box<dyn AppBase>,
 }
-impl Default for App<'_> {
+impl Default for WinitApp<'_> {
 	fn default() -> Self {
 		Self {
 			window: None,
@@ -42,10 +66,12 @@ impl Default for App<'_> {
 			render_frame_delta: Duration::from_millis(0),
 			is_render_frame: true,
 			renderer: None,
+			input_cache: HashMap::new(),
+			app: Box::new(App::default()),
 		}
 	}
 }
-impl<'a> ApplicationHandler for App<'a> {
+impl<'a> ApplicationHandler for WinitApp<'a> {
 	// initialization
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		let window_attributes = Window::default_attributes()
@@ -57,7 +83,8 @@ impl<'a> ApplicationHandler for App<'a> {
 				let window_handle = Arc::new(win);
 				self.window = Some(window_handle.clone());
 				env_logger::init();
-				let wgpu = pollster::block_on(Renderer::new(window_handle.clone()));
+				let mut wgpu = pollster::block_on(Renderer::new(window_handle.clone()));
+				self.app.init(&mut wgpu);
 				self.renderer = Some(wgpu);
 			}
 			Err(e) => {
@@ -97,6 +124,15 @@ impl<'a> ApplicationHandler for App<'a> {
 				self.window_size = phys_size.into();
 			}
 			WindowEvent::KeyboardInput { event: KeyEvent { physical_key: key, state, repeat, .. }, .. } => {
+				// add key to input cache
+				if let PhysicalKey::Code(x) = key {
+					if state.is_pressed() && !repeat {
+						self.input_cache.insert(x, KBState::Pressed);
+					}
+					else if !state.is_pressed() {
+						self.input_cache.insert(x, KBState::Released);
+					}
+				}
 				match key {
 					PhysicalKey::Code(KeyCode::Escape) => {
 						if state.is_pressed() && !repeat {
@@ -132,35 +168,46 @@ impl<'a> ApplicationHandler for App<'a> {
 				}
 			}
 			WindowEvent::RedrawRequested => {
-				self.update();
-				self.render(event_loop);
+				// run internal app updates
+				self.app.update(&self.input_cache, &self.render_frame_delta);
+				if let Some(r) = &mut self.renderer {
+					// run internal render updates
+					self.app.render(r);
+					// run render engine actions
+					match r.render() {
+						Ok(_) => (),
+						Err(SurfaceError::Lost | SurfaceError::Outdated) => {
+							println!("Err: surface was lost or outdated. Attempting to re-connect");
+							r.resize(self.window_size.0, self.window_size.1);
+						}
+						Err(SurfaceError::OutOfMemory) => {
+							println!("Err: Out of memory. Exiting");
+							event_loop.exit();
+						}
+						Err(SurfaceError::Timeout) => {
+							println!("Err: render frame timed out");
+						}
+					};
+				}
+				// clean up input cache
+				let mut rm_k: Vec<KeyCode> = Vec::new();
+				for k in &mut self.input_cache.iter_mut() {
+					if *k.1 == KBState::Pressed { *k.1 = KBState::Down; }
+					if *k.1 == KBState::Released { rm_k.push(*k.0); }
+				}
+				for k in rm_k {
+					self.input_cache.remove(&k);
+				}
 			}
 			_ => (),
 		}
 	}
 }
-impl App<'_> {
-	fn update(&mut self) {
-		let fps_1 = 1.0 / self.frame_delta.as_secs_f32();
-		let fps_2 = 1.0 / self.render_frame_delta.as_secs_f32();
-		println!("FPS - Updates: {fps_1}, Renders: {fps_2}");
-	}
-	fn render(&mut self, event_loop: &ActiveEventLoop) {
+impl WinitApp<'_> {
+	fn cleanup(&mut self) {
+		self.app.cleanup();
 		if let Some(r) = &mut self.renderer {
-			match r.render() {
-				Ok(_) => (),
-				Err(SurfaceError::Lost | SurfaceError::Outdated) => {
-					println!("Err: surface was lost or outdated. Attempting to re-connect");
-					r.resize(self.window_size.0, self.window_size.1);
-				}
-				Err(SurfaceError::OutOfMemory) => {
-					println!("Err: Out of memory. Exiting");
-					event_loop.exit();
-				}
-				Err(SurfaceError::Timeout) => {
-					println!("Err: render frame timed out");
-				}
-			};
+			r.destroy(true);
 		}
 	}
 }
@@ -168,6 +215,7 @@ impl App<'_> {
 fn main() {
   let event_loop = EventLoop::new().unwrap();
 	event_loop.set_control_flow(ControlFlow::Poll);
-	let mut app = App::default();
+	let mut app = WinitApp::default();
 	let _ = event_loop.run_app(&mut app);
+	app.cleanup();
 }
