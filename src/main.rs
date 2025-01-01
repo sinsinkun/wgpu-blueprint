@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
-use winit::event::{KeyEvent, WindowEvent, StartCause};
+use winit::event::{KeyEvent, WindowEvent, StartCause, Ime};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{PhysicalKey, KeyCode};
 use winit::window::{Window, WindowId};
@@ -11,6 +11,7 @@ const RENDER_FPS_LOCK: Duration = Duration::from_millis(8);
 
 #[derive(Debug)]
 struct App {
+	// system diagnostics
   window: Option<Window>,
 	lifetime: Duration,
 	last_frame: Instant,
@@ -85,6 +86,17 @@ impl ApplicationHandler for App {
 						if state.is_pressed() && !repeat {
 							println!("Hello world");
 						}
+					}
+					_ => ()
+				}
+			}
+			WindowEvent::Ime(ime) => {
+				match ime {
+					Ime::Enabled => {
+						println!("Enabled IME inputs");
+					}
+					Ime::Commit(chr) => {
+						println!("Committing character {chr}");
 					}
 					_ => ()
 				}
