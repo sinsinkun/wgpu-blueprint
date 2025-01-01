@@ -42,11 +42,11 @@ struct WinitApp<'a> {
   window: Option<Arc<Window>>,
 	window_size: (u32, u32),
 	lifetime: Duration,
+	last_event_frame: Instant,
+	event_frame_delta: Duration,
+	// render handling
 	last_frame: Instant,
 	frame_delta: Duration,
-	// render handling
-	last_render_frame: Instant,
-	render_frame_delta: Duration,
 	is_render_frame: bool,
 	renderer: Option<Renderer<'a>>,
 	// input handling
@@ -60,10 +60,10 @@ impl Default for WinitApp<'_> {
 			window: None,
 			window_size: DEFAULT_SIZE,
 			lifetime: Duration::from_millis(0),
+			last_event_frame: Instant::now(),
+			event_frame_delta: Duration::from_millis(0),
 			last_frame: Instant::now(),
 			frame_delta: Duration::from_millis(0),
-			last_render_frame: Instant::now(),
-			render_frame_delta: Duration::from_millis(0),
 			is_render_frame: true,
 			renderer: None,
 			input_cache: HashMap::new(),
@@ -97,15 +97,19 @@ impl<'a> ApplicationHandler for WinitApp<'a> {
 	fn new_events(&mut self, _evt_loop: &ActiveEventLoop, _cause: StartCause) {
 		// calculate time data
 		let now = Instant::now();
-		self.frame_delta = now - self.last_frame;
-		self.last_frame = now;
-		self.lifetime += self.frame_delta;
+		self.event_frame_delta = now - self.last_event_frame;
+		self.last_event_frame = now;
+		self.lifetime += self.event_frame_delta;
 		// restrict rendering pace
-		self.render_frame_delta = now - self.last_render_frame;
-		if self.render_frame_delta > RENDER_FPS_LOCK {
+		self.frame_delta = now - self.last_frame;
+		if self.frame_delta > RENDER_FPS_LOCK {
 			self.is_render_frame = true;
-			self.last_render_frame = now;
+			self.last_frame = now;
 			self.window.as_ref().unwrap().request_redraw();
+			// fps debug
+			// let fps_1 = 1.0 / self.event_frame_delta.as_secs_f32();
+			// let fps_2 = 1.0 / self.frame_delta.as_secs_f32();
+			// println!("FPS - Updates: {fps_1}, Renders: {fps_2}");
 		} else {
 			self.is_render_frame = false;
 		}
@@ -169,7 +173,7 @@ impl<'a> ApplicationHandler for WinitApp<'a> {
 			}
 			WindowEvent::RedrawRequested => {
 				// run internal app updates
-				self.app.update(&self.input_cache, &self.render_frame_delta);
+				self.app.update(&self.input_cache, &self.frame_delta);
 				if let Some(r) = &mut self.renderer {
 					// run internal render updates
 					self.app.render(r);
@@ -193,11 +197,14 @@ impl<'a> ApplicationHandler for WinitApp<'a> {
 				let mut rm_k: Vec<KeyCode> = Vec::new();
 				for k in &mut self.input_cache.iter_mut() {
 					if *k.1 == KBState::Pressed { *k.1 = KBState::Down; }
-					if *k.1 == KBState::Released { rm_k.push(*k.0); }
+					else if *k.1 == KBState::Released { rm_k.push(*k.0); }
 				}
 				for k in rm_k {
 					self.input_cache.remove(&k);
 				}
+				// wait until
+				let wait_until = Instant::now() + RENDER_FPS_LOCK;
+				event_loop.set_control_flow(ControlFlow::WaitUntil(wait_until));
 			}
 			_ => (),
 		}
@@ -214,7 +221,7 @@ impl WinitApp<'_> {
 
 fn main() {
   let event_loop = EventLoop::new().unwrap();
-	event_loop.set_control_flow(ControlFlow::Poll);
+	event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now()));
 	let mut app = WinitApp::default();
 	let _ = event_loop.run_app(&mut app);
 	app.cleanup();
