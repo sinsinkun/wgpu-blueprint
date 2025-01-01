@@ -10,6 +10,11 @@ impl AppBase for App {
   }
   fn update(&mut self, sys: SystemInfo) {
     self.fps = 1.0 / sys.frame_delta.as_secs_f32();
-    println!("Inputs since last frame: {:?}", sys.inputs);
+    if !sys.kb_inputs.is_empty() {
+      println!("Inputs: {:?}", sys.kb_inputs);
+    }
+    if sys.m_inputs.left == MKBState::Down {
+      println!("Mouse State: {:?} -> {:?}", sys.m_inputs.pos_delta, sys.m_inputs.position);
+    }
   }
 }

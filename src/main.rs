@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalSize;
-use winit::event::{KeyEvent, WindowEvent, StartCause, Ime};
+use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::event::{Ime, KeyEvent, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{PhysicalKey, KeyCode};
 use winit::window::{Window, WindowId};
@@ -22,12 +22,39 @@ const RENDER_FPS_LOCK: Duration = Duration::from_millis(100);
 const DEFAULT_SIZE: (u32, u32) = (800, 600);
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum KBState { Pressed, Down, Released }
+pub enum MKBState { None, Pressed, Down, Released }
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct MouseState {
+  left: MKBState,
+  right: MKBState,
+  instp: PhysicalPosition<f64>,
+  position: PhysicalPosition<f64>,
+  pos_delta: (f64, f64),
+}
+impl MouseState {
+  fn new() -> Self {
+    Self {
+      left: MKBState::None,
+      right: MKBState::None,
+      instp: PhysicalPosition{ x:0.0, y:0.0 },
+      position: PhysicalPosition{ x:0.0, y:0.0 },
+      pos_delta: (0.0, 0.0),
+    }
+  }
+  fn frame_sync(&mut self) {
+    let dx = self.instp.x - self.position.x;
+    let dy = self.instp.y - self.position.y;
+    self.pos_delta = (dx, dy);
+    self.position = self.instp;
+  }
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct SystemInfo<'a> {
-  inputs: &'a HashMap<KeyCode, KBState>,
+  kb_inputs: &'a HashMap<KeyCode, MKBState>,
+  m_inputs: &'a MouseState,
   frame_delta: &'a Duration,
   win_size: &'a (u32, u32),
 }
@@ -71,7 +98,8 @@ struct WinitApp<'a, T> {
 	is_render_frame: bool,
 	renderer: Option<Renderer<'a>>,
 	// input handling
-	input_cache: HashMap<KeyCode, KBState>,
+	input_cache: HashMap<KeyCode, MKBState>,
+  mouse_cache: MouseState,
 	// app state separation
 	app: T,
 }
@@ -135,10 +163,10 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				// add key to input cache
 				if let PhysicalKey::Code(x) = key {
 					if state.is_pressed() && !repeat {
-						self.input_cache.insert(x, KBState::Pressed);
+						self.input_cache.insert(x, MKBState::Pressed);
 					}
 					else if !state.is_pressed() {
-						self.input_cache.insert(x, KBState::Released);
+						self.input_cache.insert(x, MKBState::Released);
 					}
 				}
 				match key {
@@ -164,7 +192,28 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 					_ => ()
 				}
 			}
-			WindowEvent::Ime(ime) => {
+			WindowEvent::MouseInput { state, button, .. } => {
+        if button == MouseButton::Left {
+          if state.is_pressed() {
+            self.mouse_cache.left = MKBState::Pressed;
+          }
+          else if !state.is_pressed() {
+            self.mouse_cache.left = MKBState::Released;
+          }
+        }
+        if button == MouseButton::Right {
+          if state.is_pressed() {
+            self.mouse_cache.right = MKBState::Pressed;
+          }
+          else if !state.is_pressed() {
+            self.mouse_cache.right = MKBState::Released;
+          }
+        }
+      }
+      WindowEvent::CursorMoved { position, .. } => {
+        self.mouse_cache.instp = position;
+      }
+      WindowEvent::Ime(ime) => {
 				match ime {
 					Ime::Enabled => {
 						println!("Enabled IME inputs");
@@ -177,8 +226,10 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			}
 			WindowEvent::RedrawRequested => {
 				// run internal app updates
+        self.mouse_cache.frame_sync();
 				self.app.update(SystemInfo {
-          inputs: &self.input_cache,
+          kb_inputs: &self.input_cache,
+          m_inputs: &self.mouse_cache,
           frame_delta: &self.frame_delta,
           win_size: &self.window_size,
         });
@@ -204,12 +255,23 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				// clean up input cache
 				let mut rm_k: Vec<KeyCode> = Vec::new();
 				for k in &mut self.input_cache.iter_mut() {
-					if *k.1 == KBState::Pressed { *k.1 = KBState::Down; }
-					else if *k.1 == KBState::Released { rm_k.push(*k.0); }
+					if *k.1 == MKBState::Pressed { *k.1 = MKBState::Down; }
+					else if *k.1 == MKBState::Released { rm_k.push(*k.0); }
 				}
 				for k in rm_k {
 					self.input_cache.remove(&k);
 				}
+        // clean up mouse cache
+        if self.mouse_cache.left == MKBState::Pressed {
+          self.mouse_cache.left = MKBState::Down;
+        } else if self.mouse_cache.left == MKBState::Released {
+          self.mouse_cache.left = MKBState::None;
+        }
+        if self.mouse_cache.right == MKBState::Pressed {
+          self.mouse_cache.right = MKBState::Down;
+        } else if self.mouse_cache.right == MKBState::Released {
+          self.mouse_cache.right = MKBState::None;
+        }
 				// wait until
 				let wait_until = Instant::now() + RENDER_FPS_LOCK;
 				event_loop.set_control_flow(ControlFlow::WaitUntil(wait_until));
@@ -231,6 +293,7 @@ impl<T: AppBase> WinitApp<'_, T> {
 			is_render_frame: true,
 			renderer: None,
 			input_cache: HashMap::new(),
+      mouse_cache: MouseState::new(),
 			app: ext_app,
 		}
   }
