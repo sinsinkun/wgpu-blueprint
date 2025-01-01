@@ -18,6 +18,7 @@ pub struct Renderer<'a> {
   msaa: Texture,
   zbuffer: Texture,
   limits: Limits,
+  default_cam: RCamera,
   // configurable
   pub clear_color: Color,
   pub pipelines: Vec<RPipeline>,
@@ -109,6 +110,7 @@ impl<'a> Renderer<'a> {
       msaa,
       zbuffer,
       limits: Limits::default(),
+      default_cam: RCamera::new_ortho(0.0, 1000.0),
       clear_color: Color::BLACK,
       pipelines: Vec::new(),
       textures: Vec::new(),
@@ -201,8 +203,8 @@ impl<'a> Renderer<'a> {
     height: u32,
     texture_path: Option<&Path>,
     use_device_format: bool
-  ) -> u32 {
-    let id = self.textures.len() as u32;
+  ) -> RId {
+    let id = self.textures.len();
     let mut texture_size = Extent3d { width, height, depth_or_array_layers: 1 };
     let mut texture_data: Option<DynamicImage> = None;
 
@@ -258,7 +260,7 @@ impl<'a> Renderer<'a> {
     }
     // add to cache
     self.textures.push(texture);
-    id
+    RId::texture(id)
   }
   // update image on texture
   pub fn update_texture(&mut self, texture_id: u32, texture_path: &Path) {
@@ -331,8 +333,8 @@ impl<'a> Renderer<'a> {
     }
   }
   // create new render pipeline and add it to pipeline collection
-  pub fn add_pipeline(&mut self, setup: RPipelineSetup) -> u32 {
-    let id = self.pipelines.len() as u32;
+  pub fn add_pipeline(&mut self, setup: RPipelineSetup) -> RId {
+    let id = self.pipelines.len();
 
     // translate cullmode
     let cull_mode: Option<Face> = match setup.cull_mode {
@@ -528,9 +530,9 @@ impl<'a> Renderer<'a> {
       bind_group1,
     };
     self.pipelines.push(pipe);
-    id
+    RId::pipeline(id)
   }
-  // part of pipeline build process
+  // part of pipeline build process (predefined uniforms)
   fn build_bind_group0(
     &self, pipeline: &RenderPipeline,
     max_obj_count: usize,
@@ -641,7 +643,7 @@ impl<'a> Renderer<'a> {
       entries: output_entries
     }
   }
-  // part of pipeline build process
+  // part of pipeline build process (custom uniforms)
   fn build_bind_group1(
     &self,
     pipeline: &RenderPipeline,
@@ -682,6 +684,133 @@ impl<'a> Renderer<'a> {
     return RBindGroup {
       base: bind_group,
       entries: bind_entries
+    }
+  }
+  // add vertex data for object to be rendered
+  pub fn add_object(&mut self, obj_data: RObjectSetup) -> RId {
+    let pipe = &mut self.pipelines[obj_data.pipeline_id];
+    let id = pipe.objects.len();
+
+    // create vertex buffer
+    let vlen: usize;
+    let v_buffer: Buffer;
+    match obj_data.vertex_type {
+      RObjectSetup::VERTEX_TYPE_ANIM => {
+        vlen = obj_data.anim_vertex_data.len();
+        v_buffer = self.device.create_buffer(&BufferDescriptor {
+          label: Some("anim-vertex-buffer"),
+          size: (std::mem::size_of::<RVertexAnim>() * vlen) as u64,
+          usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+          mapped_at_creation: false
+        });
+        self.queue.write_buffer(&v_buffer, 0, bytemuck::cast_slice(&obj_data.anim_vertex_data));
+      }
+      _ => {
+        vlen = obj_data.vertex_data.len();
+        v_buffer = self.device.create_buffer(&BufferDescriptor {
+          label: Some("vertex-buffer"),
+          size: (std::mem::size_of::<RVertex>() * vlen) as u64,
+          usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+          mapped_at_creation: false
+        });
+        self.queue.write_buffer(&v_buffer, 0, bytemuck::cast_slice(&obj_data.vertex_data));
+      }
+    }
+
+    // create index buffer
+    let mut index_buffer: Option<Buffer> = None;
+    let ilen: usize = obj_data.indices.len();
+    if ilen > 0 {
+      let i_buffer = self.device.create_buffer(&BufferDescriptor {
+        label: Some("index-buffer"),
+        size: (std::mem::size_of::<u32>() * ilen) as u64,
+        usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+        mapped_at_creation: false
+      });
+      self.queue.write_buffer(&i_buffer, 0, bytemuck::cast_slice(&obj_data.indices));
+      index_buffer = Some(i_buffer);
+    }
+
+    // save to cache
+    let obj = RObject {
+      visible: true,
+      v_buffer,
+      v_count: vlen,
+      pipe_index: id,
+      index_buffer,
+      index_count: ilen as u32,
+      instances: 1,
+    };
+    pipe.objects.push(obj);
+    let object_id = RId::object(obj_data.pipeline_id, id);
+    self.update_object(RObjectUpdate{ id: object_id, ..Default::default()});
+
+    object_id
+  }
+  // update object 
+  pub fn update_object(&mut self, update: RObjectUpdate) {
+    let pipe = &mut self.pipelines[update.id.pipeline];
+    let obj = &mut pipe.objects[update.id.object];
+    let cam = match update.camera {
+      Some(c) => c,
+      None => &self.default_cam
+    };
+
+    obj.visible = update.visible;
+    // model matrix
+    let model_t = Mat4::translate(update.translate[0], update.translate[1], update.translate[2]);
+    let model_r = Mat4::rotate(&update.rotate_axis, update.rotate_deg);
+    let model_s = Mat4::scale(update.scale[0], update.scale[1], update.scale[2]);
+    let model = Mat4::multiply(&model_t, &Mat4::multiply(&model_s, &model_r));
+    // view matrix
+    let view_t = Mat4::translate(-cam.position[0], -cam.position[1], -cam.position[2]);
+    let view_r = Mat4::view_rot(&cam.position, &cam.look_at, &cam.up);
+    let view = Mat4::multiply(&view_r, &view_t);
+    // projection matrix
+    let w2 = (self.config.width / 2) as f32;
+    let h2 = (self.config.height / 2) as f32;
+    let proj = match cam.cam_type {
+      1 => Mat4::ortho(-w2, w2, h2, -h2, cam.near, cam.far),
+      2 => Mat4::perspective(cam.fov_y, w2/h2, cam.near, cam.far),
+      _ => Mat4::identity()
+    };
+    // merge together
+    let mut mvp: [f32; 48] = [0.0; 48]; // 16 * 3 = 48
+    for i in 0..48 {
+      if i < 16 { mvp[i] = model[i]; }
+      else if i < 32 { mvp[i] = view[i - 16]; }
+      else { mvp[i] = proj[i - 32]; }
+    }
+    let stride = self.limits.min_uniform_buffer_offset_alignment;
+    self.queue.write_buffer(
+      &pipe.bind_group0.entries[0], 
+      (stride * obj.pipe_index as u32) as u64, 
+      bytemuck::cast_slice(&mvp)
+    );
+    // merge animation matrices into single buffer
+    if pipe.max_joints_count > 0 && update.anim_transforms.len() > 0 {
+      let mut anim_buffer: Vec<f32> = Vec::new();
+      for i in 0..pipe.max_joints_count {
+        if i >= update.anim_transforms.len() as u32 {
+          break;
+        }
+        // merge [f32; 16] arrays into single anim_buffer
+        let a = update.anim_transforms[i as usize];
+        anim_buffer.extend_from_slice(&a);
+      }
+      self.queue.write_buffer(&pipe.bind_group0.entries[1], 0, bytemuck::cast_slice(&anim_buffer));
+    }
+    // update custom uniforms
+    if update.uniforms.len() > 0 {
+      if let Some(bind_group1) = &pipe.bind_group1 {
+        for (i, uniform) in update.uniforms.iter().enumerate() {
+          self.queue.write_buffer(
+            &bind_group1.entries[i],
+            (stride * obj.pipe_index as u32) as u64,
+            *uniform
+          );
+        }
+      }
     }
   }
   // destroy all resources

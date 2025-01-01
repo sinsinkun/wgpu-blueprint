@@ -24,6 +24,14 @@ const DEFAULT_SIZE: (u32, u32) = (800, 600);
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum KBState { Pressed, Down, Released }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct SystemInfo<'a> {
+  inputs: &'a HashMap<KeyCode, KBState>,
+  frame_delta: &'a Duration,
+  win_size: &'a (u32, u32),
+}
+
 pub trait AppBase {
 	/// actions to take on initialization
 	/// - prepare render pipelines
@@ -32,16 +40,16 @@ pub trait AppBase {
 	/// actions to take to update logic
 	/// - respond to inputs
 	/// - state changes
-	fn update(&mut self, inputs: &HashMap<KeyCode, KBState>, frame_delta: &Duration);
+	fn update(&mut self, sys: SystemInfo);
 	/// actions to take just before render
 	/// - prepare render objects
 	/// - update colors
 	/// - finalize positions
 	/// - update/upload shader variables
-	fn pre_render(&mut self, renderer: &mut Renderer);
+	fn pre_render(&mut self, _renderer: &mut Renderer) {}
 	/// actions to take after exiting event loop
 	/// - destroy dangling resources
-	fn cleanup(&mut self);
+	fn cleanup(&mut self) {}
 }
 impl std::fmt::Debug for dyn AppBase {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -169,7 +177,11 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			}
 			WindowEvent::RedrawRequested => {
 				// run internal app updates
-				self.app.update(&self.input_cache, &self.frame_delta);
+				self.app.update(SystemInfo {
+          inputs: &self.input_cache,
+          frame_delta: &self.frame_delta,
+          win_size: &self.window_size,
+        });
 				if let Some(r) = &mut self.renderer {
 					// run internal render updates
 					self.app.pre_render(r);
