@@ -462,7 +462,7 @@ impl<'a> Renderer<'a> {
       },
       fragment: Some(FragmentState{
         module: &shader_mod,
-        entry_point: Some(setup.vertex_fn),
+        entry_point: Some(setup.fragment_fn),
         targets: &[Some(ColorTargetState{
           format: self.surface_format,
           blend: Some(BlendState { 
@@ -691,6 +691,10 @@ impl<'a> Renderer<'a> {
     (texture_id, pipeline_id)
   }
 
+  pub fn clear_overlay(&mut self, texture_id: RTextureId, clear_color: Option<[f64;4]>) {
+    self.render_texture(&[], texture_id, clear_color);
+  }
+
   pub fn add_object(&mut self, obj_data: RObjectSetup) -> RObjectId {
     let pipe = &mut self.pipelines[obj_data.pipeline_id.0];
     let id = pipe.objects.len();
@@ -897,7 +901,7 @@ impl<'a> Renderer<'a> {
     }) {
       Ok(()) => (),
       Err(e) => {
-        println!("Could not draw str: \"{}\" - {:?}", input, e);
+        println!("Error while drawing str: \"{}\" - {:?}", input, e);
       }
     };
   }
