@@ -28,8 +28,8 @@ impl AppBase for App {
     let fps_txt = format!("FPS: {:.3}", self.fps);
     renderer.clear_texture(self.textures[0], None);
     renderer.render_str_on_texture(
-      self.textures[0], &fps_txt, 24.0, [0x34, 0xff, 0x34],
-      [10, 20], 2);
+      self.textures[0], &fps_txt, 24.0, [0x34, 0xff, 0x34], [10, 20], 2
+    );
     &self.pipelines
   }
 }
