@@ -15,6 +15,10 @@ impl AppBase for App {
     self.pipelines.push(p1.1);
     self.textures.push(p1.0);
   }
+  fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {
+    // resize overlay
+    renderer.update_texture_size(self.textures[0], Some(self.pipelines[0]), width, height);
+  }
   fn update(&mut self, sys: SystemInfo) {
     self.fps = 1.0 / sys.frame_delta.as_secs_f32();
     if !sys.kb_inputs.is_empty() {
@@ -25,15 +29,11 @@ impl AppBase for App {
     }
   }
   fn pre_render(&mut self, _sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId> {
-    let fps_txt = format!("FPS: {:.3}", self.fps);
+    let fps_txt = format!("FPS: {:.2}", self.fps);
     renderer.clear_texture(self.textures[0], None);
     renderer.render_str_on_texture(
-      self.textures[0], &fps_txt, 24.0, [0x34, 0xff, 0x34, 0xff], [10.0, 10.0], 2.0
+      self.textures[0], &fps_txt, 24.0, [0x34, 0xff, 0x34, 0xff], [10.0, 24.0], 2.0
     );
     &self.pipelines
-  }
-  fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {
-    // resize overlay
-    renderer.update_texture_size(self.textures[0], Some(self.pipelines[0]), width, height);
   }
 }
