@@ -5,6 +5,7 @@ use ab_glyph::Rect;
 use super::*;
 
 // helper for defining object transform data
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct Shape {
   pub id: RObjectId,
   pub position: [f32; 3],

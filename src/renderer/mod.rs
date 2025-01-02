@@ -81,9 +81,9 @@ pub struct RPipeline {
   // bind_group3: Option<RBindGroup>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct RObjectId (pub usize, pub usize);
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct RPipelineId (pub usize);
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct RTextureId (pub usize);

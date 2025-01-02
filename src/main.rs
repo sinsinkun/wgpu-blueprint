@@ -65,6 +65,9 @@ pub trait AppBase {
 	/// - prepare render pipelines
 	/// - instantialize data objects
 	fn init(&mut self, renderer: &mut Renderer);
+	/// actions to take on window resize
+	/// - called before updates
+	fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {}
 	/// actions to take to update logic
 	/// - respond to inputs
 	/// - state changes
@@ -79,9 +82,6 @@ pub trait AppBase {
   /// actions to take after exiting event loop
 	/// - destroy dangling resources
 	fn cleanup(&mut self) {}
-	/// actions to take on window resize
-	/// - note: asynchronous with update/render cycle
-	fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {}
 }
 impl std::fmt::Debug for dyn AppBase {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
