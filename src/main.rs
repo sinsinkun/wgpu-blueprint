@@ -78,7 +78,7 @@ pub trait AppBase {
 	/// - finalize positions
 	/// - update/upload shader variables
   /// - output pipeline ids to render
-	fn pre_render(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId>;
+	fn render(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId>;
   /// actions to take after exiting event loop
 	/// - destroy dangling resources
 	fn cleanup(&mut self) {}
@@ -253,9 +253,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				self.app.update(sys);
 				if let Some(r) = &mut self.renderer {
 					// run internal render updates
-					let pipes = self.app.pre_render(sys, r);
+					let pipes = self.app.render(sys, r);
 					// run render engine actions
-					match r.render(pipes) {
+					match r.render_to_screen(pipes) {
 						Ok(_) => (),
 						Err(SurfaceError::Lost | SurfaceError::Outdated) => {
 							println!("Err: surface was lost or outdated. Attempting to re-connect");

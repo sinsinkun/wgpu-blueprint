@@ -130,7 +130,8 @@ impl<'a> Renderer<'a> {
       font_cache: None,
     };
   }
-
+  /// Destroys surface screen texture and remakes it
+  /// Also destroys
   pub fn resize(&mut self, width: u32, height: u32) {
     if width > 0 && height > 0 {
       self.config.width = width;
@@ -172,14 +173,14 @@ impl<'a> Renderer<'a> {
       self.zbuffer = zbuffer;
     }
   }
-
+  /// update default clear_color
   pub fn set_clear_color(&mut self, r: f64, g: f64, b:f64, a:f64) {
     self.clear_color.r = r;
     self.clear_color.g = g;
     self.clear_color.b = b;
     self.clear_color.a = a;
   }
-
+  /// load new font data into font_cache
   pub fn load_font(&mut self, font_path: &str) {
     match fs::read(font_path) {
       Ok(f) => {
@@ -190,7 +191,7 @@ impl<'a> Renderer<'a> {
       }
     };
   }
-
+  /// create new texture
   pub fn add_texture(&mut self, width: u32, height: u32, texture_path: Option<&Path>, use_device_format: bool) -> RTextureId {
     let id = self.textures.len();
     let mut texture_size = Extent3d { width, height, depth_or_array_layers: 1 };
@@ -250,7 +251,7 @@ impl<'a> Renderer<'a> {
     self.textures.push(texture);
     RTextureId(id)
   }
-
+  /// copies image (from path) onto texture
   pub fn update_texture(&mut self, texture_id: RTextureId, texture_path: &Path) {
     let texture = &mut self.textures[texture_id.0];
     match ImageReader::open(texture_path) {
@@ -290,7 +291,8 @@ impl<'a> Renderer<'a> {
       }
     }
   }
-
+  /// destroy existing texture and replace it 
+  /// with a new texture with a new size
   pub fn update_texture_size(&mut self, texture_id: RTextureId, pipeline_id: Option<RPipelineId>, width: u32, height: u32) {
     let old_texture = &mut self.textures[texture_id.0];
 
@@ -320,7 +322,9 @@ impl<'a> Renderer<'a> {
       pipeline.bind_group0 = new_bind_id;
     }
   }
-
+  /// create render pipeline
+  /// - creates rendering process that object passes through
+  /// - defines shaders + uniforms
   pub fn add_pipeline(&mut self, setup: RPipelineSetup) -> RPipelineId {
     let id: usize = self.pipelines.len();
 
@@ -522,7 +526,8 @@ impl<'a> Renderer<'a> {
     self.pipelines.push(pipe);
     RPipelineId(id)
   }
-
+  /// part of add_pipeline system
+  /// - creates bind_group(0) for pre-defined uniforms
   fn add_bind_group0(
     &self, pipeline: &RenderPipeline,
     max_obj_count: usize,
@@ -633,7 +638,8 @@ impl<'a> Renderer<'a> {
       entries: output_entries
     }
   }
-
+  /// part of add_pipeline system
+  /// - creates bind_group(1) for custom uniforms
   fn add_bind_group1(
     &self,
     pipeline: &RenderPipeline,
@@ -674,7 +680,8 @@ impl<'a> Renderer<'a> {
       entries: bind_entries
     }
   }
-
+  /// shorthand for creating a texture of the same size as the window
+  /// - also creates a default pipeline for overlaying text
   pub fn add_overlay_pipeline(&mut self) -> (RTextureId, RPipelineId) {
     // build full screen texture
     let texture_id = self.add_texture(self.config.width, self.config.height, None, true);
@@ -690,11 +697,12 @@ impl<'a> Renderer<'a> {
     // output fields
     (texture_id, pipeline_id)
   }
-
+  /// shorthand for wiping a texture
+  /// - shortcut for render_on_texture(...)
   pub fn clear_texture(&mut self, texture_id: RTextureId, clear_color: Option<[f64;4]>) {
     self.render_on_texture(&[], texture_id, clear_color);
   }
-
+  /// add new render object to a pipeline
   pub fn add_object(&mut self, obj_data: RObjectSetup) -> RObjectId {
     let pipe = &mut self.pipelines[obj_data.pipeline_id.0];
     let id = pipe.objects.len();
@@ -754,7 +762,7 @@ impl<'a> Renderer<'a> {
     self.update_object(RObjectUpdate{ object_id, ..Default::default()});
     object_id
   }
-
+  /// update existing render object attached to a pipeline
   pub fn update_object(&mut self, update: RObjectUpdate) {
     let pipe = &mut self.pipelines[update.object_id.0];
     let obj = &mut pipe.objects[update.object_id.1];
@@ -820,66 +828,74 @@ impl<'a> Renderer<'a> {
       }
     }
   }
-
-  pub fn render_on_texture(&mut self, pipeline_ids: &[RPipelineId], target_id: RTextureId, clear_color: Option<[f64;4]>) {
+  /// separate out pipeline implementation to resolve ownership issues
+  /// - shared by render_on_texture and render_to_screen
+  fn render_impl(
+    &self,
+    encoder: &mut CommandEncoder,
+    target: TextureView,
+    pipeline_ids: &[RPipelineId],
+    clear_color: Option<[f64;4]>
+  ) {
     let mut clear_clr = self.clear_color;
     if let Some(c) = clear_color {
       clear_clr = Color { r:c[0], g:c[1], b:c[2], a:c[3] };
     }
     let view = self.msaa.create_view(&TextureViewDescriptor::default());
-    let tx = &self.textures[target_id.0];
-    let target = tx.create_view(&TextureViewDescriptor::default());
     let zbuffer_view = self.zbuffer.create_view(&TextureViewDescriptor::default());
-    let mut encoder = self.device.create_command_encoder(
-      &wgpu::CommandEncoderDescriptor { label: Some("render-texture-encoder") }
-    );
-    {
-      // new context so ownership of encoder is released after pass finishes
-      let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
-        label: Some("render-pass"),
-        color_attachments: &[Some(RenderPassColorAttachment {
-          view: &view,
-          resolve_target: Some(&target),
-          ops: Operations {
-            load: LoadOp::Clear(clear_clr),
-            store: StoreOp::Store,
-          },
-        })],
-        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-          view: &zbuffer_view,
-          depth_ops: Some(Operations {
-            load: LoadOp::Clear(1.0),
-            store: StoreOp::Store
-          }),
-          stencil_ops: None,
+    let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
+      label: Some("render-pass"),
+      color_attachments: &[Some(RenderPassColorAttachment {
+        view: &view,
+        resolve_target: Some(&target),
+        ops: Operations {
+          load: LoadOp::Clear(clear_clr),
+          store: StoreOp::Store,
+        },
+      })],
+      depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+        view: &zbuffer_view,
+        depth_ops: Some(Operations {
+          load: LoadOp::Clear(1.0),
+          store: StoreOp::Store
         }),
-        occlusion_query_set: None,
-        timestamp_writes: None,
-      });
-      // add objects to render
-      for p_id in pipeline_ids {
-        let pipeline = &self.pipelines[p_id.0];
-        for obj in &pipeline.objects {
-          if !obj.visible { continue; }
-          let stride = self.limits.min_uniform_buffer_offset_alignment * obj.pipe_index as u32;
-          pass.set_pipeline(&pipeline.pipe);
-          pass.set_vertex_buffer(0, obj.v_buffer.slice(..));
-          pass.set_bind_group(0, &pipeline.bind_group0.base, &[stride]);
-          if let Some(bind_group1) = &pipeline.bind_group1 {
-            pass.set_bind_group(1, &bind_group1.base, &[stride]);
-          }
-          if let Some(i_buffer) = &obj.index_buffer {
-            pass.set_index_buffer(i_buffer.slice(..), IndexFormat::Uint32);
-            pass.draw_indexed(0..obj.index_count, 0, 0..obj.instances);
-          } else {
-            pass.draw(0..(obj.v_count as u32), 0..obj.instances);
-          }
+        stencil_ops: None,
+      }),
+      occlusion_query_set: None,
+      timestamp_writes: None,
+    });
+    // add objects to render
+    for p_id in pipeline_ids {
+      let pipeline = &self.pipelines[p_id.0];
+      for obj in &pipeline.objects {
+        if !obj.visible { continue; }
+        let stride = self.limits.min_uniform_buffer_offset_alignment * obj.pipe_index as u32;
+        pass.set_pipeline(&pipeline.pipe);
+        pass.set_vertex_buffer(0, obj.v_buffer.slice(..));
+        pass.set_bind_group(0, &pipeline.bind_group0.base, &[stride]);
+        if let Some(bind_group1) = &pipeline.bind_group1 {
+          pass.set_bind_group(1, &bind_group1.base, &[stride]);
+        }
+        if let Some(i_buffer) = &obj.index_buffer {
+          pass.set_index_buffer(i_buffer.slice(..), IndexFormat::Uint32);
+          pass.draw_indexed(0..obj.index_count, 0, 0..obj.instances);
+        } else {
+          pass.draw(0..(obj.v_count as u32), 0..obj.instances);
         }
       }
     }
+  }
+  /// runs rendering pipeline(s) on target texture
+  pub fn render_on_texture(&mut self, pipeline_ids: &[RPipelineId], target_id: RTextureId, clear_color: Option<[f64;4]>) {
+    let tx = &self.textures[target_id.0];
+    let target = tx.create_view(&TextureViewDescriptor::default());
+    let mut encoder = self.device.create_command_encoder(
+      &wgpu::CommandEncoderDescriptor { label: Some("render-texture-encoder") }
+    );
+    self.render_impl(&mut encoder, target, pipeline_ids, clear_color);
     self.queue.submit(std::iter::once(encoder.finish()));
   }
-
+  /// overlays text string on target texture
   pub fn render_str_on_texture(
     &mut self,
     texture_id: RTextureId,
@@ -913,66 +929,21 @@ impl<'a> Renderer<'a> {
       }
     };
   }
-
-  pub fn render(&mut self, pipeline_ids: &Vec<RPipelineId>) -> Result<(), wgpu::SurfaceError> {
+  /// runs rendering pipeline(s) on window surface
+  /// - finalizes queue and submits it
+  /// - draws to window surface
+  pub fn render_to_screen(&mut self, pipeline_ids: &Vec<RPipelineId>) -> Result<(), wgpu::SurfaceError> {
     let output = self.surface.get_current_texture()?;
-    let view = self.msaa.create_view(&TextureViewDescriptor::default());
     let target = output.texture.create_view(&TextureViewDescriptor::default());
-    let zbuffer_view = self.zbuffer.create_view(&TextureViewDescriptor::default());
     let mut encoder = self.device.create_command_encoder(
       &wgpu::CommandEncoderDescriptor { label: Some("render-encoder") }
     );
-    {
-      // new context so ownership of encoder is released after pass finishes
-      let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
-        label: Some("render-pass"),
-        color_attachments: &[Some(RenderPassColorAttachment {
-          view: &view,
-          resolve_target: Some(&target),
-          ops: Operations {
-            load: LoadOp::Clear(self.clear_color),
-            store: StoreOp::Store,
-          },
-        })],
-        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-          view: &zbuffer_view,
-          depth_ops: Some(Operations {
-            load: LoadOp::Clear(1.0),
-            store: StoreOp::Store
-          }),
-          stencil_ops: None,
-        }),
-        occlusion_query_set: None,
-        timestamp_writes: None,
-      });
-      // add objects to render
-      for p_id in pipeline_ids {
-        let pipeline = &self.pipelines[p_id.0];
-        for obj in &pipeline.objects {
-          if !obj.visible { continue; }
-          let stride = self.limits.min_uniform_buffer_offset_alignment * obj.pipe_index as u32;
-          pass.set_pipeline(&pipeline.pipe);
-          pass.set_vertex_buffer(0, obj.v_buffer.slice(..));
-          pass.set_bind_group(0, &pipeline.bind_group0.base, &[stride]);
-          if let Some(bind_group1) = &pipeline.bind_group1 {
-            pass.set_bind_group(1, &bind_group1.base, &[stride]);
-          }
-          if let Some(i_buffer) = &obj.index_buffer {
-            pass.set_index_buffer(i_buffer.slice(..), IndexFormat::Uint32);
-            pass.draw_indexed(0..obj.index_count, 0, 0..obj.instances);
-          } else {
-            pass.draw(0..(obj.v_count as u32), 0..obj.instances);
-          }
-        }
-      }
-    }
-
+    self.render_impl(&mut encoder, target, pipeline_ids, None);
     self.queue.submit(std::iter::once(encoder.finish()));
     output.present();
-
     Ok(())
   }
-
+  /// manually free memory used by renderer
   pub fn destroy(&mut self, destroy_renderer: bool) {
     // destroy textures
     for tx in &mut self.textures {

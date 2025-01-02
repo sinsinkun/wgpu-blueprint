@@ -60,7 +60,7 @@ impl AppBase for App {
       println!("Mouse State: {:?} -> {:?}", sys.m_inputs.pos_delta, sys.m_inputs.position);
     }
   }
-  fn pre_render(&mut self, _sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId> {
+  fn render(&mut self, _sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId> {
     let fps_txt = format!("FPS: {:.2}", self.fps);
     renderer.update_object(RObjectUpdate{
       object_id: self.shapes[0].0.id,
