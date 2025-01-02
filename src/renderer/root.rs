@@ -28,7 +28,8 @@ pub struct Renderer<'a> {
 }
 
 impl<'a> Renderer<'a> {
-  // Creating some of the wgpu types requires async code
+  /// Create wgpu renderer instance attached to window
+  /// - Creating some of the wgpu types requires async code
   pub async fn new(window: Arc<Window>) -> Renderer<'a> {
     let size = window.inner_size();
 
@@ -131,7 +132,7 @@ impl<'a> Renderer<'a> {
     };
   }
   /// Destroys surface screen texture and remakes it
-  /// Also destroys
+  /// - Also destroys and remakes MSAA and z-buffer textures
   pub fn resize(&mut self, width: u32, height: u32) {
     if width > 0 && height > 0 {
       self.config.width = width;
