@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::{default, ops::{Add, AddAssign, Sub, SubAssign}};
 
 use ab_glyph::Rect;
 
@@ -101,16 +101,16 @@ impl RCamera {
 }
 
 // helper for building new pipeline
+#[derive(Debug, Default)]
+pub enum RUniformVisibility {
+  #[default]
+  Vertex, Fragment, Both
+}
 #[derive(Debug)]
 pub struct RUniformSetup {
   pub bind_slot: u32,
-  pub visibility: u8,
+  pub visibility: RUniformVisibility,
   pub size_in_bytes: u32,
-}
-impl RUniformSetup {
-  pub const VISIBILITY_VERTEX: u8 = 1;
-  pub const VISIBILITY_FRAGMENT: u8 = 2;
-  pub const VISIBILITY_BOTH: u8 = 0;
 }
 #[derive(Debug)]
 pub struct RPipelineSetup<'a> {

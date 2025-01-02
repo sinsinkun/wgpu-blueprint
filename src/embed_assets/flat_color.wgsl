@@ -2,6 +2,7 @@
 @group(0) @binding(1) var tx_sampler: sampler;
 @group(0) @binding(2) var texture1: texture_2d<f32>;
 @group(0) @binding(3) var texture2: texture_2d<f32>;
+@group(1) @binding(0) var<uniform> color: vec4f;
 
 struct MVP {
   model: mat4x4<f32>,
@@ -24,17 +25,14 @@ struct VertOut {
 @vertex
 fn vertexMain(input: VertIn) -> VertOut {
   var out: VertOut;
-  out.pos = vec4f(input.pos, 1.0);
+  let mvp_mat = mvp.proj * mvp.view * mvp.model;
+  out.pos = mvp_mat * vec4f(input.pos, 1.0);
   out.uv = input.uv;
-  out.normal = input.normal;
+  out.normal = (mvp.model * vec4f(input.normal, 0.0)).xyz;
   return out;
 }
 
 @fragment
 fn fragmentMain(input: VertOut) -> @location(0) vec4f {
-  var tx = textureSample(texture1, tx_sampler, input.uv);
-  if (tx.a < 0.0001) {
-    discard;
-  }
-  return tx;
+  return color;
 }

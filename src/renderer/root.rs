@@ -410,9 +410,9 @@ impl<'a> Renderer<'a> {
       // add bind group entries to layout
       for u in &setup.uniforms {
         let visibility = match u.visibility {
-          1 => ShaderStages::VERTEX,
-          2 => ShaderStages::FRAGMENT,
-          _ => ShaderStages::VERTEX_FRAGMENT,
+          RUniformVisibility::Vertex => ShaderStages::VERTEX,
+          RUniformVisibility::Fragment => ShaderStages::FRAGMENT,
+          RUniformVisibility::Both => ShaderStages::all(),
         };
         entries.push(BindGroupLayoutEntry {
           binding: u.bind_slot,
@@ -692,7 +692,7 @@ impl<'a> Renderer<'a> {
   }
 
   pub fn clear_texture(&mut self, texture_id: RTextureId, clear_color: Option<[f64;4]>) {
-    self.render_texture(&[], texture_id, clear_color);
+    self.render_on_texture(&[], texture_id, clear_color);
   }
 
   pub fn add_object(&mut self, obj_data: RObjectSetup) -> RObjectId {
@@ -821,7 +821,7 @@ impl<'a> Renderer<'a> {
     }
   }
 
-  pub fn render_texture(&mut self, pipeline_ids: &[RPipelineId], target_id: RTextureId, clear_color: Option<[f64;4]>) {
+  pub fn render_on_texture(&mut self, pipeline_ids: &[RPipelineId], target_id: RTextureId, clear_color: Option<[f64;4]>) {
     let mut clear_clr = self.clear_color;
     if let Some(c) = clear_color {
       clear_clr = Color { r:c[0], g:c[1], b:c[2], a:c[3] };
