@@ -886,8 +886,8 @@ impl<'a> Renderer<'a> {
     input: &str,
     size:f32,
     color: [u8; 4],
-    base_point: [u32; 2],
-    spacing: u32
+    base_point: [f32; 2],
+    spacing: f32
   ) {
     let texture = &mut self.textures[texture_id.0];
     // fetch font data

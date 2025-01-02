@@ -133,39 +133,40 @@ pub fn draw_str_on_texture(
   string: &str,
   size: f32,
   color: [u8; 4],
-  base_point: [u32; 2],
-  spacing: u32,
+  base_point: [f32; 2],
+  spacing: f32,
 ) -> Result<(), TextError> {
   // define font
   let font = FontRef::try_from_slice(font_data).map_err(|_| TextError::FileLoadError)?;
-  let space_dx = (size / 3.0) as u32;
+  let space_dx = size / 3.0;
   // define image buffer
   let mut img = RgbaImage::new(texture.width(), texture.height());
 
-  let mut c_pos: [u32; 2] = base_point;
+  let mut c_pos: [f32; 2] = base_point;
   for c in string.chars() {
     let glyph = font.glyph_id(c).with_scale(size);
     if let Some(ch) = font.outline_glyph(glyph) {
       let bounds = ch.px_bounds();
-      let mut x_offset = 0;
-      let y_offset = bounds.min.y.abs() as u32;
+      let mut x_offset = 0.0;
+      let y_offset = bounds.min.y;
       // write pixels to image
       ch.draw(|x, y, c| {
+        if x as f32 > x_offset { x_offset = x as f32; }
+        let absx = c_pos[0] + x as f32;
+        let absy = c_pos[1] + y_offset + y as f32;
+        // skip offscreen chars
+        if absx < 1.0 || absx >= img.width() as f32 { return; }
+        else if absy < 1.0 || absy >= img.height() as f32 { return; }
+        // draw pixel
         let r = color[0];
         let g = color[1];
         let b = color[2];
         let mut a: u8 = f32::floor(c * 255.0) as u8;
         if a > color[3] { a = color[3]; }
-        if x > x_offset { x_offset = x; }
-        let absx = c_pos[0] + x;
-        let absy = c_pos[1] - y_offset + y;
-        // skip offscreen chars
-        if absx >= img.width() || absx < 1 { return; }
-        else if absy >= img.height() || absy < 1 { return; }
-        else if a < 10 {
-          img.put_pixel(absx, absy, Rgba([0,0,0,0]));
+        if a < 10 {
+          img.put_pixel(absx as u32, absy as u32, Rgba([0,0,0,0]));
         } else {
-          img.put_pixel(absx, absy, Rgba([r,g,b,a]));
+          img.put_pixel(absx as u32, absy as u32, Rgba([r,g,b,a]));
         }
       });
       // update position to draw glyph

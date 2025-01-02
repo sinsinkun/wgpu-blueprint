@@ -102,6 +102,7 @@ struct WinitApp<'a, T> {
 	frame_delta: Duration,
 	is_render_frame: bool,
 	renderer: Option<Renderer<'a>>,
+	resize_state: u8,
 	// input handling
 	input_cache: HashMap<KeyCode, MKBState>,
   mouse_cache: MouseState,
@@ -159,10 +160,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				event_loop.exit();
 			}
 			WindowEvent::Resized(phys_size) => {
-				if let Some(r) = &mut self.renderer {
-					r.resize(phys_size.width, phys_size.height);
-					self.app.resize(r, phys_size.width, phys_size.height);
-				}
+				self.resize_state = 1;
 				self.window_size = phys_size.into();
 			}
 			WindowEvent::KeyboardInput { event: KeyEvent { physical_key: key, state, repeat, .. }, .. } => {
@@ -231,7 +229,19 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				}
 			}
 			WindowEvent::RedrawRequested => {
-				// run internal app updates
+				// update system
+				if self.resize_state == 1 {
+					// skip frame if window is being resized
+					self.resize_state = 2;
+					return;
+				} else if self.resize_state == 2 {
+					// call resize updates
+					if let Some(r) = &mut self.renderer {
+						r.resize(self.window_size.0, self.window_size.1);
+						self.app.resize(r, self.window_size.0, self.window_size.1);
+					}
+					self.resize_state = 0;
+				}
         self.mouse_cache.frame_sync();
 				let sys = SystemInfo {
 					kb_inputs: &self.input_cache,
@@ -239,6 +249,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
           frame_delta: &self.frame_delta,
           win_size: &self.window_size,
 				};
+				// run internal app updates
 				self.app.update(sys);
 				if let Some(r) = &mut self.renderer {
 					// run internal render updates
@@ -299,6 +310,7 @@ impl<T: AppBase> WinitApp<'_, T> {
 			frame_delta: Duration::from_millis(0),
 			is_render_frame: true,
 			renderer: None,
+			resize_state: 0,
 			input_cache: HashMap::new(),
       mouse_cache: MouseState::new(),
 			app: ext_app,
