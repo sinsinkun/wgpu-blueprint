@@ -1,4 +1,7 @@
-#![allow(dead_code)]
+use std::ops::{Add, AddAssign, Sub, SubAssign};
+
+use ab_glyph::Rect;
+
 use super::*;
 
 // helper for defining object transform data
@@ -233,5 +236,42 @@ impl<'a> RObjectUpdate<'a> {
   pub fn with_anim(mut self, transforms: Vec<[f32; 16]>) -> Self {
     self.anim_transforms = transforms;
     self
+  }
+}
+
+// simple helper object
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
+pub struct Vec2 { x: f32, y: f32 }
+impl Vec2 {
+  pub fn size_in_bytes() -> u32 { 2 * 3 }
+  pub fn new(x: f32, y: f32) -> Self {
+    Self { x, y }
+  }
+  pub fn as_array(&self) -> [f32; 2] {
+    [self.x, self.y]
+  }
+}
+impl Add for Vec2 {
+  type Output = Vec2;
+  fn add(self, rhs: Self) -> Self::Output {
+    Vec2::new(self.x + rhs.x, self.y + rhs.y)
+  }
+}
+impl AddAssign for Vec2 {
+  fn add_assign(&mut self, rhs: Self) {
+    self.x += rhs.x;
+    self.y += rhs.y;
+  }
+}
+impl Sub for Vec2 {
+  type Output = Vec2;
+  fn sub(self, rhs: Self) -> Self::Output {
+    Vec2::new(self.x - rhs.x, self.y - rhs.y)
+  }
+}
+impl SubAssign for Vec2 {
+  fn sub_assign(&mut self, rhs: Self) {
+    self.x -= rhs.x;
+    self.y -= rhs.y;
   }
 }

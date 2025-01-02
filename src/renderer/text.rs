@@ -12,15 +12,23 @@ pub enum TextError {
   ExceedsBounds,
 }
 
+#[derive(Debug)]
 pub struct RStringInputs<'a> {
   pub queue: &'a Queue,
   pub texture: &'a mut Texture,
   pub font_data: &'a Vec<u8>,
   pub string: &'a str,
   pub size: f32,
-  pub color: [u8; 3],
+  pub color: [u8; 4],
   pub base_point: [u32; 2],
-  pub char_gap: u32,
+  pub spacing: u32,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct StringRect {
+  pub width: f32,
+  pub min_y: f32,
+  pub max_y: f32,
 }
 
 // create image of glyph to append onto texture
@@ -87,85 +95,109 @@ pub fn load_cached_glyph(font_raw: &Vec<u8>, c: char, size: f32, color: [u8; 3])
   }
 }
 
-// draw glyph on texture
-pub fn draw_glyph_on_texture(queue: &Queue, texture: &mut Texture, glyph: RgbaImage, position: [u32; 2]) -> Result<(), TextError> {
-  // define glyph data
-  let dimensions = glyph.dimensions();
-  let glyph_size = Extent3d { 
+/// measures string size
+/// - min_y will generally output as a negative number
+/// - max_y is overflow underneath origin.y
+pub fn measure_str_size(font_raw: &Vec<u8>, str: &str, size: f32) -> Result<StringRect, TextError> {
+  let font = FontRef::try_from_slice(font_raw).map_err(|_| TextError::FileLoadError)?;
+
+  let space_dx = f32::round(size / 3.0);
+  let mut rect = StringRect{ width: 0.0, min_y: 0.0, max_y: 0.0 };
+  for c in str.chars() {
+    let glyph: Glyph = font.glyph_id(c).with_scale(size);
+    if let Some(ch) = font.outline_glyph(glyph) {
+      let bounds: Rect = ch.px_bounds();
+      rect.width += bounds.max.x;
+      if bounds.min.y < rect.min_y {
+        rect.min_y = bounds.min.y;
+      }
+      if bounds.max.y > rect.max_y {
+        rect.max_y = bounds.max.y;
+      }
+      println!("char: \"{c}\" - {:?}", bounds);
+    } else {
+      println!("char: \"{c}\" has no outline");
+      rect.width += space_dx;
+    }
+  }
+  Ok(rect)
+}
+
+/// draws string onto a texture
+/// - creates empty image and writes pixels directly onto image
+/// - image is copied onto wgpu texture
+pub fn draw_str_on_texture(
+  queue: &Queue,
+  texture: &mut Texture,
+  font_data: &Vec<u8>,
+  string: &str,
+  size: f32,
+  color: [u8; 4],
+  base_point: [u32; 2],
+  spacing: u32,
+) -> Result<(), TextError> {
+  // define font
+  let font = FontRef::try_from_slice(font_data).map_err(|_| TextError::FileLoadError)?;
+  let space_dx = (size / 3.0) as u32;
+  // define image buffer
+  let mut img = RgbaImage::new(texture.width(), texture.height());
+
+  let mut c_pos: [u32; 2] = base_point;
+  for c in string.chars() {
+    let glyph = font.glyph_id(c).with_scale(size);
+    if let Some(ch) = font.outline_glyph(glyph) {
+      let bounds = ch.px_bounds();
+      let mut x_offset = 0;
+      let y_offset = bounds.min.y.abs() as u32;
+      // write pixels to image
+      ch.draw(|x, y, c| {
+        let r = color[0];
+        let g = color[1];
+        let b = color[2];
+        let mut a: u8 = f32::floor(c * 255.0) as u8;
+        if a > color[3] { a = color[3]; }
+        if x > x_offset { x_offset = x; }
+        let absx = c_pos[0] + x;
+        let absy = c_pos[1] - y_offset + y;
+        // skip offscreen chars
+        if absx >= img.width() || absx < 1 { return; }
+        else if absy >= img.height() || absy < 1 { return; }
+        else if a < 10 {
+          img.put_pixel(absx, absy, Rgba([0,0,0,0]));
+        } else {
+          img.put_pixel(absx, absy, Rgba([r,g,b,a]));
+        }
+      });
+      // update position to draw glyph
+      c_pos[0] += x_offset + spacing;
+    } else {
+      // handling blank space
+      c_pos[0] += space_dx + spacing;
+    }
+  }
+
+  // write img to texture
+  let dimensions = img.dimensions();
+  let img_size = Extent3d { 
     width: dimensions.0,
     height: dimensions.1,
     depth_or_array_layers: 1
   };
-
-  // early exit if not enough space on texture to render text
-  let container_w = texture.width();
-  let container_h = texture.height();
-  if position[0] + dimensions.0 > container_w {
-    return Err(TextError::ExceedsBounds)
-  }
-  if position[1] + dimensions.1 > container_h {
-    return Err(TextError::ExceedsBounds)
-  }
-
-  // write glyph to texture
   queue.write_texture(
     ImageCopyTexture {
-      texture: &texture,
+      texture,
       mip_level: 0,
-      origin: Origin3d { x:position[0], y:position[1], z:0 },
+      origin: Origin3d { x:0, y:0, z:0 },
       aspect: TextureAspect::All,
     },
-    &glyph,
+    &img,
     ImageDataLayout {
       offset: 0,
       bytes_per_row: Some(4 * dimensions.0),
       rows_per_image: Some(dimensions.1),
     },
-    glyph_size
+    img_size
   );
-
-  Ok(())
-}
-
-// combines glyph functions to render full string
-pub fn draw_str(input: RStringInputs) -> Result<(), TextError> {
-  // create individual glyph rasters
-  let mut offset: u32 = 0;
-  let mut glyphs: Vec<(u32, u32, RgbaImage)> = Vec::new();
-
-  // handle texture format conversion
-  let t_fmt = input.texture.format();
-  let mut color = input.color;
-  match t_fmt {
-    TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => {
-      let b = color[0];
-      color[0] = color[2];
-      color[2] = b;
-    }
-    _ => ()
-  }
-
-  // convert characters to rasterized images
-  for c in input.string.chars() {
-    // skip empty characters (todo: handle newlines separately)
-    if c == ' ' || c == '\n' || c == '\t' {
-      offset += input.char_gap * 3;
-      continue;
-    }
-    let (glyph, v_offset) = load_cached_glyph(input.font_data, c, input.size, color)?;
-    let x = input.base_point[0] + offset;
-    if v_offset as u32 > input.base_point[1] {
-      return Err(TextError::ExceedsBounds)
-    }
-    let y = input.base_point[1] - v_offset as u32;
-    offset += glyph.width() + input.char_gap;
-    glyphs.push((x, y, glyph));
-  }
-
-  // draw to texture
-  for (x, y, img) in glyphs {
-    draw_glyph_on_texture(input.queue, input.texture, img, [x, y])?;
-  }
 
   Ok(())
 }
@@ -173,7 +205,6 @@ pub fn draw_str(input: RStringInputs) -> Result<(), TextError> {
 #[cfg(test)]
 mod glyph_brush_test {
   use super::*;
-
   #[test]
   fn glyph_test() {
     let a = load_new_glyph('B', [100, 10, 100]);
@@ -185,7 +216,6 @@ mod glyph_brush_test {
     assert!(c.is_ok());
     assert!(d.is_ok());
   }
-
   #[test]
   fn glyph_cached_test() {
     let font = include_bytes!("../embed_assets/NotoSerifCHB.ttf");
@@ -197,5 +227,11 @@ mod glyph_brush_test {
     assert!(b.is_ok());
     assert!(c.is_ok());
     assert!(d.is_ok());
+  }
+  #[test]
+  fn measure_str_test() {
+    let font = include_bytes!("../embed_assets/NotoSansCB.ttf");
+    let r = measure_str_size(&font.to_vec(), "Hot Dog", 16.0);
+    assert!(r.is_ok())
   }
 }

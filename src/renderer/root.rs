@@ -880,7 +880,15 @@ impl<'a> Renderer<'a> {
     self.queue.submit(std::iter::once(encoder.finish()));
   }
 
-  pub fn render_str_on_texture(&mut self, texture_id: RTextureId, input: &str, size:f32, color: [u8; 3], base_point: [u32; 2], char_gap: u32) {
+  pub fn render_str_on_texture(
+    &mut self,
+    texture_id: RTextureId,
+    input: &str,
+    size:f32,
+    color: [u8; 4],
+    base_point: [u32; 2],
+    spacing: u32
+  ) {
     let texture = &mut self.textures[texture_id.0];
     // fetch font data
     if self.font_cache.is_none() { 
@@ -889,16 +897,16 @@ impl<'a> Renderer<'a> {
     }
     let font_data = self.font_cache.as_ref().unwrap();
     // draw string onto existing texture
-    match draw_str(RStringInputs {
-      queue: &self.queue,
+    match draw_str_on_texture(
+      &self.queue,
       texture,
       font_data,
-      string: input,
+      input,
       size,
       color,
       base_point,
-      char_gap,
-    }) {
+      spacing,
+    ) {
       Ok(()) => (),
       Err(e) => {
         println!("Error while drawing str: \"{}\" - {:?}", input, e);

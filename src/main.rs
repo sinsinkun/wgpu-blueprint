@@ -59,6 +59,7 @@ pub struct SystemInfo<'a> {
   win_size: &'a (u32, u32),
 }
 
+#[allow(unused_variables)]
 pub trait AppBase {
 	/// actions to take on initialization
 	/// - prepare render pipelines
@@ -78,6 +79,9 @@ pub trait AppBase {
   /// actions to take after exiting event loop
 	/// - destroy dangling resources
 	fn cleanup(&mut self) {}
+	/// actions to take on window resize
+	/// - note: asynchronous with update/render cycle
+	fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {}
 }
 impl std::fmt::Debug for dyn AppBase {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -157,6 +161,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			WindowEvent::Resized(phys_size) => {
 				if let Some(r) = &mut self.renderer {
 					r.resize(phys_size.width, phys_size.height);
+					self.app.resize(r, phys_size.width, phys_size.height);
 				}
 				self.window_size = phys_size.into();
 			}
