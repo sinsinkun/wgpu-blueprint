@@ -101,6 +101,11 @@ impl RCamera {
 }
 
 // helper for building new pipeline
+#[derive(Debug, Default, Clone)]
+pub enum RShader<'a> {
+  #[default]
+  Texture, FlatColor, Text, Custom(&'a str)
+}
 #[derive(Debug, Default)]
 pub enum RUniformVisibility {
   #[default]
@@ -114,7 +119,7 @@ pub struct RUniformSetup {
 }
 #[derive(Debug)]
 pub struct RPipelineSetup<'a> {
-  pub shader: &'a str,
+  pub shader: RShader<'a>,
   pub max_obj_count: usize,
   pub texture1_id: Option<RTextureId>,
   pub texture2_id: Option<RTextureId>,
@@ -129,7 +134,7 @@ pub struct RPipelineSetup<'a> {
 impl Default for RPipelineSetup<'_> {
   fn default() -> Self {
       RPipelineSetup {
-        shader: include_str!("../embed_assets/base.wgsl"),
+        shader: RShader::Texture,
         max_obj_count: 10,
         texture1_id: None,
         texture2_id: None,
@@ -194,6 +199,7 @@ pub struct RObjectUpdate<'a> {
   pub scale: &'a [f32; 3],
   pub visible: bool,
   pub camera: Option<&'a RCamera>,
+  pub color: &'a [f32; 4],
   pub uniforms: Vec<&'a [u8]>,
   pub anim_transforms: Vec<[f32; 16]>,
 }
@@ -207,6 +213,7 @@ impl Default for RObjectUpdate<'_> {
       scale: &[1.0, 1.0, 1.0],
       visible: true,
       camera: None,
+      color: &[1.0, 1.0, 1.0, 1.0],
       uniforms: Vec::new(),
       anim_transforms: Vec::new(),
     }
@@ -222,6 +229,7 @@ impl<'a> RObjectUpdate<'a> {
       scale: &shape.scale,
       visible: shape.visible,
       camera: None,
+      color: &[1.0, 1.0, 1.0, 1.0],
       uniforms: Vec::new(),
       anim_transforms: Vec::new(),
     }

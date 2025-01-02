@@ -329,6 +329,14 @@ impl<'a> Renderer<'a> {
   pub fn add_pipeline(&mut self, setup: RPipelineSetup) -> RPipelineId {
     let id: usize = self.pipelines.len();
 
+    // translate shader
+    let shader = match setup.shader {
+      RShader::Texture => { include_str!("../embed_assets/base.wgsl") }
+      RShader::FlatColor => { include_str!("../embed_assets/flat_color.wgsl") }
+      RShader::Text => { include_str!("../embed_assets/text.wgsl") }
+      RShader::Custom(s) => { s }
+    };
+
     // translate cullmode
     let cull_mode: Option<Face> = match setup.cull_mode {
       1 => Some(Face::Back),
@@ -346,7 +354,7 @@ impl<'a> Renderer<'a> {
     // build render pipeline
     let shader_mod = self.device.create_shader_module(ShaderModuleDescriptor {
       label: Some("shader-module"),
-      source: ShaderSource::Wgsl(setup.shader.into()),
+      source: ShaderSource::Wgsl(shader.into()),
     });
     // switch between static/dynamic vertex bind group entries
     let mut bind_group0_entries: Vec<BindGroupLayoutEntry> = vec![
@@ -361,16 +369,27 @@ impl<'a> Renderer<'a> {
         },
         count: None,
       },
-      // texture sampler
+      // albedo color
       BindGroupLayoutEntry {
         binding: 1,
+        visibility: ShaderStages::FRAGMENT,
+        ty: BindingType::Buffer {
+          ty: BufferBindingType::Uniform,
+          has_dynamic_offset: true,
+          min_binding_size: None,
+        },
+        count: None,
+      },
+      // texture sampler
+      BindGroupLayoutEntry {
+        binding: 2,
         visibility: ShaderStages::FRAGMENT,
         ty: BindingType::Sampler(SamplerBindingType::Filtering),
         count: None,
       },
       // texture 1
       BindGroupLayoutEntry {
-        binding: 2,
+        binding: 3,
         visibility: ShaderStages::FRAGMENT,
         ty: BindingType::Texture {
           sample_type: TextureSampleType::Float { filterable: true },
@@ -381,7 +400,7 @@ impl<'a> Renderer<'a> {
       },
       // texture 2
       BindGroupLayoutEntry {
-        binding: 3,
+        binding: 4,
         visibility: ShaderStages::FRAGMENT,
         ty: BindingType::Texture {
           sample_type: TextureSampleType::Float { filterable: true },
@@ -393,7 +412,7 @@ impl<'a> Renderer<'a> {
     ];
     if setup.vertex_type == RPipelineSetup::VERTEX_TYPE_ANIM {
       bind_group0_entries.push(BindGroupLayoutEntry {
-        binding: 4,
+        binding: 5,
         visibility: ShaderStages::VERTEX,
         ty: BindingType::Buffer {
           ty: BufferBindingType::Uniform,
@@ -545,6 +564,13 @@ impl<'a> Renderer<'a> {
       usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
       mapped_at_creation: false,
     });
+    // create albedo buffer
+    let albedo_buffer = self.device.create_buffer(&BufferDescriptor {
+      label: Some("albedo-uniform-buffer"),
+      size: min_stride as u64 * max_obj_count as u64,
+      usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+      mapped_at_creation: false,
+    });
     // create texture
     let texture1_view: TextureView;
     let texture2_view: TextureView;
@@ -586,6 +612,7 @@ impl<'a> Renderer<'a> {
     });
     // create bind entries
     let mvp_size = NonZeroU64::new(192); // 4 bytes * 4 rows * 4 columns * 3 matrices
+    let albedo_size = NonZeroU64::new(16); // 4 bytes * 4
     let mut bind_entries: Vec<BindGroupEntry> = vec![
       BindGroupEntry {
         binding: 0,
@@ -595,14 +622,20 @@ impl<'a> Renderer<'a> {
       },
       BindGroupEntry {
         binding: 1,
-        resource: BindingResource::Sampler(&sampler)
+        resource: BindingResource::Buffer(BufferBinding {
+          buffer: &albedo_buffer, offset: 0, size: albedo_size
+        })
       },
       BindGroupEntry {
         binding: 2,
-        resource: BindingResource::TextureView(&texture1_view)
+        resource: BindingResource::Sampler(&sampler)
       },
       BindGroupEntry {
         binding: 3,
+        resource: BindingResource::TextureView(&texture1_view)
+      },
+      BindGroupEntry {
+        binding: 4,
         resource: BindingResource::TextureView(&texture2_view)
       },
     ];
@@ -615,7 +648,7 @@ impl<'a> Renderer<'a> {
     });
     if vertex_type == RPipelineSetup::VERTEX_TYPE_ANIM {
       bind_entries.push(BindGroupEntry {
-        binding: 4,
+        binding: 5,
         resource: BindingResource::Buffer(BufferBinding {
           buffer: &joints_buffer, offset: 0, size: None
         })
@@ -630,7 +663,7 @@ impl<'a> Renderer<'a> {
     });
 
     // create output
-    let mut output_entries = vec![mvp_buffer];
+    let mut output_entries = vec![mvp_buffer, albedo_buffer];
     if vertex_type == RPipelineSetup::VERTEX_TYPE_ANIM {
       output_entries.push(joints_buffer);
     }
@@ -688,7 +721,7 @@ impl<'a> Renderer<'a> {
     let texture_id = self.add_texture(self.config.width, self.config.height, None, true);
     // build render pipeline
     let pipeline_id = self.add_pipeline(RPipelineSetup {
-      shader: include_str!("../embed_assets/text.wgsl"),
+      shader: RShader::Text,
       texture1_id: Some(texture_id),
       ..Default::default()
     });
@@ -803,6 +836,11 @@ impl<'a> Renderer<'a> {
       (stride * obj.pipe_index as u32) as u64, 
       bytemuck::cast_slice(&mvp)
     );
+    self.queue.write_buffer(
+      &pipe.bind_group0.entries[1], 
+      (stride * obj.pipe_index as u32) as u64, 
+      bytemuck::cast_slice(update.color)
+    );
     // merge animation matrices into single buffer
     if pipe.max_joints_count > 0 && update.anim_transforms.len() > 0 {
       let mut anim_buffer: Vec<f32> = Vec::new();
@@ -873,7 +911,7 @@ impl<'a> Renderer<'a> {
         let stride = self.limits.min_uniform_buffer_offset_alignment * obj.pipe_index as u32;
         pass.set_pipeline(&pipeline.pipe);
         pass.set_vertex_buffer(0, obj.v_buffer.slice(..));
-        pass.set_bind_group(0, &pipeline.bind_group0.base, &[stride]);
+        pass.set_bind_group(0, &pipeline.bind_group0.base, &[stride, stride]);
         if let Some(bind_group1) = &pipeline.bind_group1 {
           pass.set_bind_group(1, &bind_group1.base, &[stride]);
         }
