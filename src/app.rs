@@ -5,7 +5,6 @@ use crate::*;
 #[derive(Debug, Default)]
 pub struct App {
   fps: f32,
-  win_size: (u32, u32),
   pipelines: Vec<RPipelineId>,
   textures: Vec<RTextureId>,
 }
@@ -18,7 +17,6 @@ impl AppBase for App {
   }
   fn update(&mut self, sys: SystemInfo) {
     self.fps = 1.0 / sys.frame_delta.as_secs_f32();
-    self.win_size = *sys.win_size;
     if !sys.kb_inputs.is_empty() {
       println!("Inputs: {:?}", sys.kb_inputs);
     }
@@ -26,12 +24,12 @@ impl AppBase for App {
       println!("Mouse State: {:?} -> {:?}", sys.m_inputs.pos_delta, sys.m_inputs.position);
     }
   }
-  fn pre_render(&mut self, renderer: &mut Renderer) -> &Vec<RPipelineId> {
-    let fps_txt = "FPS: ".to_owned() + &self.fps.to_string();
-    renderer.clear_overlay(self.textures[0], None);
+  fn pre_render(&mut self, _sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId> {
+    let fps_txt = format!("FPS: {:.3}", self.fps);
+    renderer.clear_texture(self.textures[0], None);
     renderer.render_str_on_texture(
-      self.textures[0], &fps_txt, 24.0, [0xff, 0xff, 0xff],
-      [self.win_size.0 - 80, self.win_size.1 - 5], 1);
+      self.textures[0], &fps_txt, 24.0, [0x34, 0xff, 0x34],
+      [10, 20], 2);
     &self.pipelines
   }
 }

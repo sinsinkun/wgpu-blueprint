@@ -51,7 +51,7 @@ impl MouseState {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct SystemInfo<'a> {
   kb_inputs: &'a HashMap<KeyCode, MKBState>,
   m_inputs: &'a MouseState,
@@ -74,7 +74,7 @@ pub trait AppBase {
 	/// - finalize positions
 	/// - update/upload shader variables
   /// - output pipeline ids to render
-	fn pre_render(&mut self, renderer: &mut Renderer) -> &Vec<RPipelineId>;
+	fn pre_render(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId>;
   /// actions to take after exiting event loop
 	/// - destroy dangling resources
 	fn cleanup(&mut self) {}
@@ -228,15 +228,16 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			WindowEvent::RedrawRequested => {
 				// run internal app updates
         self.mouse_cache.frame_sync();
-				self.app.update(SystemInfo {
-          kb_inputs: &self.input_cache,
+				let sys = SystemInfo {
+					kb_inputs: &self.input_cache,
           m_inputs: &self.mouse_cache,
           frame_delta: &self.frame_delta,
           win_size: &self.window_size,
-        });
+				};
+				self.app.update(sys);
 				if let Some(r) = &mut self.renderer {
 					// run internal render updates
-					let pipes = self.app.pre_render(r);
+					let pipes = self.app.pre_render(sys, r);
 					// run render engine actions
 					match r.render(pipes) {
 						Ok(_) => (),

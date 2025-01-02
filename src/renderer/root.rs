@@ -691,7 +691,7 @@ impl<'a> Renderer<'a> {
     (texture_id, pipeline_id)
   }
 
-  pub fn clear_overlay(&mut self, texture_id: RTextureId, clear_color: Option<[f64;4]>) {
+  pub fn clear_texture(&mut self, texture_id: RTextureId, clear_color: Option<[f64;4]>) {
     self.render_texture(&[], texture_id, clear_color);
   }
 
