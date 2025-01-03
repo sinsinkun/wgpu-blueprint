@@ -212,6 +212,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
       }
       WindowEvent::CursorMoved { position, .. } => {
         self.mouse_cache.instp.x = position.x as f32;
+				self.mouse_cache.instp.y = position.y as f32;
       }
       WindowEvent::Ime(ime) => {
 				match ime {

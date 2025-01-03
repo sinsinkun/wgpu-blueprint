@@ -2,18 +2,31 @@ use renderer::*;
 
 use crate::*;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct App {
   fps: f32,
   pipelines: Vec<RPipelineId>,
   textures: Vec<RTextureId>,
   shapes: Vec<Shape>,
+  camera_3d: RCamera,
+}
+impl Default for App {
+  fn default() -> Self {
+    Self {
+      fps: 0.0,
+      pipelines: Vec::new(),
+      textures: Vec::new(),
+      shapes:  Vec::new(),
+      camera_3d: RCamera::new_ortho(0.0, 1000.0),
+    }
+  }
 }
 impl AppBase for App {
   fn init(&mut self, renderer: &mut Renderer) {
     self.init_overlay(renderer);
     self.init_circle(renderer);
     self.init_rect(renderer);
+    self.camera_3d = RCamera::new_persp(90.0, 0.1, 1000.0);
   }
   fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {
     // resize overlay
@@ -52,7 +65,7 @@ impl AppBase for App {
       rotate_deg:  mx * 10.0 - 5.0,
       rect_size: Some([20.0, 10.0]),
       rect_radius: 4.0,
-      camera: Some(&RCamera::new_persp(90.0, 0.1, 1000.0)),
+      camera: Some(&self.camera_3d),
       ..Default::default()
     });
     renderer.render_on_texture(&self.pipelines[1..3], self.textures[0], None);
