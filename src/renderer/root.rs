@@ -328,7 +328,106 @@ impl<'a> Renderer<'a> {
   /// - defines shaders + uniforms
   pub fn add_pipeline(&mut self, setup: RPipelineSetup) -> RPipelineId {
     let id: usize = self.pipelines.len();
+    // build render pipeline
+    let shader_mod = self.build_shader_module(&setup);
+    let mut bind_group_container: Vec<&BindGroupLayout> = vec![];
+    let bind_group0_layout = self.build_bind_group0_layout(&setup);
+    bind_group_container.push(&bind_group0_layout);
+    // build custom bind group layout
+    let bind_group1_layout: BindGroupLayout;
+    if setup.uniforms.len() > 0 {
+      bind_group1_layout = self.build_bind_group1_layout(&setup);
+      bind_group_container.push(&bind_group1_layout);
+    }
+    let pipeline_layout = self.device.create_pipeline_layout(&PipelineLayoutDescriptor {
+      label: Some("pipeline-layout"),
+      bind_group_layouts: bind_group_container.as_slice(),
+      push_constant_ranges: &[]
+    });
+    // switch between static/dynamic vertex layouts
+    let vertex_attr_static = vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x3];
+    let vertex_attr_anim = vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x3, 3 => Uint32x4, 4 => Float32x4];
+    let vertex_layout = match setup.vertex_type {
+      RPipelineSetup::VERTEX_TYPE_ANIM => VertexBufferLayout {
+        array_stride: std::mem::size_of::<RVertexAnim>() as BufferAddress,
+        step_mode: VertexStepMode::Vertex,
+        attributes: &vertex_attr_anim,
+      },
+      _ => VertexBufferLayout {
+        array_stride: std::mem::size_of::<RVertex>() as BufferAddress,
+        step_mode: VertexStepMode::Vertex,
+        attributes: &vertex_attr_static,
+      }
+    };
+    let pipeline = self.device.create_render_pipeline(&RenderPipelineDescriptor {
+      label: Some("render-pipeline"),
+      layout: Some(&pipeline_layout),
+      vertex: VertexState {
+        module: &shader_mod,
+        entry_point: Some(setup.vertex_fn),
+        buffers: &[vertex_layout],
+        compilation_options: PipelineCompilationOptions::default(),
+      },
+      fragment: Some(FragmentState{
+        module: &shader_mod,
+        entry_point: Some(setup.fragment_fn),
+        targets: &[Some(ColorTargetState{
+          format: self.surface_format,
+          blend: Some(BlendState { 
+            color: BlendComponent {
+              operation: BlendOperation::Add,
+              src_factor: BlendFactor::SrcAlpha,
+              dst_factor: BlendFactor::OneMinusSrcAlpha
+            },
+            alpha: BlendComponent {
+              operation: BlendOperation::Add,
+              src_factor: BlendFactor::SrcAlpha,
+              dst_factor: BlendFactor::OneMinusSrcAlpha
+            }
+          }),
+          write_mask: ColorWrites::ALL
+        })],
+        compilation_options: PipelineCompilationOptions::default(),
+      }),
+      multisample: MultisampleState {
+        count: 4,
+        mask: !0,
+        alpha_to_coverage_enabled: true,
+      },
+      depth_stencil: Some(DepthStencilState {
+        format: TextureFormat::Depth24Plus,
+        depth_write_enabled: true,
+        depth_compare: CompareFunction::LessEqual,
+        stencil: StencilState::default(),
+        bias: DepthBiasState::default(),
+      }),
+      primitive: self.build_primitive_state(&setup),
+      multiview: None,
+      cache: None,
+    });
 
+    // build bind groups
+    let bind_group0: RBindGroup = self.add_bind_group0(&pipeline, setup.max_obj_count, setup.texture1_id, setup.texture2_id, setup.vertex_type, setup.max_joints_count);
+    let mut bind_group1: Option<RBindGroup> = None;
+    if setup.uniforms.len() > 0 {
+      bind_group1 = Some(self.add_bind_group1(&pipeline, setup.max_obj_count, setup.uniforms));
+    }
+    // add to cache
+    let pipe = RPipeline {
+      pipe: pipeline,
+      objects: Vec::new(),
+      max_obj_count: setup.max_obj_count,
+      vertex_type: setup.vertex_type,
+      max_joints_count: setup.max_joints_count,
+      bind_group0,
+      bind_group1,
+    };
+    self.pipelines.push(pipe);
+    RPipelineId(id)
+  }
+  /// part of add_pipeline system
+  /// - selects shader to use with pipeline
+  fn build_shader_module(&self, setup: &RPipelineSetup) -> ShaderModule {
     // translate shader
     let shader = match setup.shader {
       RShader::Texture => { include_str!("../embed_assets/base.wgsl") }
@@ -336,27 +435,15 @@ impl<'a> Renderer<'a> {
       RShader::Text => { include_str!("../embed_assets/text.wgsl") }
       RShader::Custom(s) => { s }
     };
-
-    // translate cullmode
-    let cull_mode: Option<Face> = match setup.cull_mode {
-      1 => Some(Face::Back),
-      2 => Some(Face::Front),
-      _ => None
-    };
-
-    // translate polygon mode
-    let (polygon_mode, topology): (PolygonMode, PrimitiveTopology) = match setup.poly_mode {
-      1 => (PolygonMode::Line, PrimitiveTopology::LineList),
-      2 => (PolygonMode::Point, PrimitiveTopology::PointList),
-      _ => (PolygonMode::Fill, PrimitiveTopology::TriangleList),
-    };
-
     // build render pipeline
-    let shader_mod = self.device.create_shader_module(ShaderModuleDescriptor {
+    self.device.create_shader_module(ShaderModuleDescriptor {
       label: Some("shader-module"),
       source: ShaderSource::Wgsl(shader.into()),
-    });
-    // switch between static/dynamic vertex bind group entries
+    })
+  }
+  /// part of add_pipeline system
+  /// - defines pre-defined bind_group(0) layout
+  fn build_bind_group0_layout(&self, setup: &RPipelineSetup) -> BindGroupLayout {
     let mut bind_group0_entries: Vec<BindGroupLayoutEntry> = vec![
       // mvp matrix
       BindGroupLayoutEntry {
@@ -422,129 +509,59 @@ impl<'a> Renderer<'a> {
         count: None,
       });
     }
-    let bind_group0_layout = self.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+    self.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
       label: Some("bind-group0-layout"),
       entries: &bind_group0_entries
-    });
-    let mut bind_group_container: Vec<&BindGroupLayout> = vec![&bind_group0_layout];
-    // build custom bind group layout
-    let bind_group1_layout: BindGroupLayout;
-    if setup.uniforms.len() > 0 {
-      let mut entries: Vec<BindGroupLayoutEntry> = Vec::new();
-      // add bind group entries to layout
-      for u in &setup.uniforms {
-        let visibility = match u.visibility {
-          RUniformVisibility::Vertex => ShaderStages::VERTEX,
-          RUniformVisibility::Fragment => ShaderStages::FRAGMENT,
-          RUniformVisibility::Both => ShaderStages::all(),
-        };
-        entries.push(BindGroupLayoutEntry {
-          binding: u.bind_slot,
-          visibility,
-          ty: BindingType::Buffer { 
-            ty: BufferBindingType::Uniform,
-            has_dynamic_offset: true,
-            min_binding_size: None,
-          },
-          count: None
-        });
-      }
-      bind_group1_layout = self.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-        label: Some("bind-group0-layout"),
-        entries: &entries.as_slice()
+    })
+  }
+  /// part of add_pipeline system
+  /// - defines custom bind_group(1) layout
+  fn build_bind_group1_layout(&self, setup: &RPipelineSetup) -> BindGroupLayout {
+    let mut entries: Vec<BindGroupLayoutEntry> = Vec::new();
+    // add bind group entries to layout
+    for u in &setup.uniforms {
+      let visibility = match u.visibility {
+        RUniformVisibility::Vertex => ShaderStages::VERTEX,
+        RUniformVisibility::Fragment => ShaderStages::FRAGMENT,
+        RUniformVisibility::Both => ShaderStages::all(),
+      };
+      entries.push(BindGroupLayoutEntry {
+        binding: u.bind_slot,
+        visibility,
+        ty: BindingType::Buffer { 
+          ty: BufferBindingType::Uniform,
+          has_dynamic_offset: true,
+          min_binding_size: None,
+        },
+        count: None
       });
-      bind_group_container.push(&bind_group1_layout);
     }
-    let pipeline_layout = self.device.create_pipeline_layout(&PipelineLayoutDescriptor {
-      label: Some("pipeline-layout"),
-      bind_group_layouts: bind_group_container.as_slice(),
-      push_constant_ranges: &[]
-    });
-    // switch between static/dynamic vertex layouts
-    let vertex_attr_static = vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x3];
-    let vertex_attr_anim = vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x3, 3 => Uint32x4, 4 => Float32x4];
-    let vertex_layout = match setup.vertex_type {
-      RPipelineSetup::VERTEX_TYPE_ANIM => VertexBufferLayout {
-        array_stride: std::mem::size_of::<RVertexAnim>() as BufferAddress,
-        step_mode: VertexStepMode::Vertex,
-        attributes: &vertex_attr_anim,
-      },
-      _ => VertexBufferLayout {
-        array_stride: std::mem::size_of::<RVertex>() as BufferAddress,
-        step_mode: VertexStepMode::Vertex,
-        attributes: &vertex_attr_static,
-      }
+    self.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+      label: Some("bind-group0-layout"),
+      entries: &entries.as_slice()
+    })
+  }
+  /// part of add_pipeline system
+  /// - defines how render objects are configured
+  fn build_primitive_state(&self, setup: &RPipelineSetup) -> PrimitiveState {
+    // translate cullmode
+    let cull_mode: Option<Face> = match setup.cull_mode {
+      1 => Some(Face::Back),
+      2 => Some(Face::Front),
+      _ => None
     };
-    let pipeline = self.device.create_render_pipeline(&RenderPipelineDescriptor {
-      label: Some("render-pipeline"),
-      layout: Some(&pipeline_layout),
-      vertex: VertexState {
-        module: &shader_mod,
-        entry_point: Some(setup.vertex_fn),
-        buffers: &[vertex_layout],
-        compilation_options: PipelineCompilationOptions::default(),
-      },
-      fragment: Some(FragmentState{
-        module: &shader_mod,
-        entry_point: Some(setup.fragment_fn),
-        targets: &[Some(ColorTargetState{
-          format: self.surface_format,
-          blend: Some(BlendState { 
-            color: BlendComponent {
-              operation: BlendOperation::Add,
-              src_factor: BlendFactor::SrcAlpha,
-              dst_factor: BlendFactor::OneMinusSrcAlpha
-            },
-            alpha: BlendComponent {
-              operation: BlendOperation::Add,
-              src_factor: BlendFactor::SrcAlpha,
-              dst_factor: BlendFactor::OneMinusSrcAlpha
-            }
-          }),
-          write_mask: ColorWrites::ALL
-        })],
-        compilation_options: PipelineCompilationOptions::default(),
-      }),
-      multisample: MultisampleState {
-        count: 4,
-        mask: !0,
-        alpha_to_coverage_enabled: true,
-      },
-      depth_stencil: Some(DepthStencilState {
-        format: TextureFormat::Depth24Plus,
-        depth_write_enabled: true,
-        depth_compare: CompareFunction::LessEqual,
-        stencil: StencilState::default(),
-        bias: DepthBiasState::default(),
-      }),
-      primitive: PrimitiveState {
-        cull_mode,
-        polygon_mode,
-        topology,
-        ..PrimitiveState::default()
-      },
-      multiview: None,
-      cache: None,
-    });
-
-    // build bind groups
-    let bind_group0: RBindGroup = self.add_bind_group0(&pipeline, setup.max_obj_count, setup.texture1_id, setup.texture2_id, setup.vertex_type, setup.max_joints_count);
-    let mut bind_group1: Option<RBindGroup> = None;
-    if setup.uniforms.len() > 0 {
-      bind_group1 = Some(self.add_bind_group1(&pipeline, setup.max_obj_count, setup.uniforms));
+    // translate polygon mode
+    let (polygon_mode, topology): (PolygonMode, PrimitiveTopology) = match setup.poly_mode {
+      1 => (PolygonMode::Line, PrimitiveTopology::LineList),
+      2 => (PolygonMode::Point, PrimitiveTopology::PointList),
+      _ => (PolygonMode::Fill, PrimitiveTopology::TriangleList),
+    };
+    PrimitiveState {
+      cull_mode,
+      polygon_mode,
+      topology,
+      ..PrimitiveState::default()
     }
-    // add to cache
-    let pipe = RPipeline {
-      pipe: pipeline,
-      objects: Vec::new(),
-      max_obj_count: setup.max_obj_count,
-      vertex_type: setup.vertex_type,
-      max_joints_count: setup.max_joints_count,
-      bind_group0,
-      bind_group1,
-    };
-    self.pipelines.push(pipe);
-    RPipelineId(id)
   }
   /// part of add_pipeline system
   /// - creates bind_group(0) for pre-defined uniforms
