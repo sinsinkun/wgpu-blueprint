@@ -20,10 +20,11 @@ impl Default for App {
   }
 }
 impl AppBase for App {
-  fn init(&mut self, renderer: &mut Renderer) {
+  fn init(&mut self, _sys: SystemInfo, renderer: &mut Renderer) {
     self.camera_3d = RCamera::new_persp(90.0, 0.1, 1000.0);
     self.init_overlay(renderer);
     self.init_circle(renderer);
+    self.init_rounded_rect(renderer);
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // process inputs
@@ -59,7 +60,15 @@ impl AppBase for App {
       color: &[mx, 0.5, my, 1.0],
       ..Default::default()
     });
-    renderer.render_on_texture(&self.pipelines[1..2], self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
+    renderer.update_object(RObjectUpdate{
+      object_id: self.shapes[2].id,
+      translate: &[200.0, 100.0, -1.0],
+      color: &[0.2, my, mx, 1.0],
+      rect_size: Some([200.0, 100.0]),
+      rect_radius: 20.0,
+      ..Default::default()
+    });
+    renderer.render_on_texture(&self.pipelines[1..3], self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
 
     // render fps text to overlay
     renderer.render_str_on_blank_texture(
@@ -96,5 +105,16 @@ impl App {
 
     self.pipelines.push(pipe2);
     self.shapes.push(cir);
+  }
+  fn init_rounded_rect(&mut self, renderer: &mut Renderer) {
+    let pipe3 = renderer.add_pipeline(RPipelineSetup {
+      shader: RShader::RoundedRect,
+      ..Default::default()
+    });
+    let rect_data = Primitives::rect_indexed(200.0, 100.0, 0.0);
+    let rect = Shape::new(renderer, pipe3, rect_data.0, Some(rect_data.1));
+
+    self.pipelines.push(pipe3);
+    self.shapes.push(rect);
   }
 }

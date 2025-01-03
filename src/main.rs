@@ -64,7 +64,7 @@ pub trait AppBase {
 	/// actions to take on initialization
 	/// - prepare render pipelines
 	/// - instantialize data objects
-	fn init(&mut self, renderer: &mut Renderer);
+	fn init(&mut self, sys: SystemInfo, renderer: &mut Renderer);
 	/// actions to take on window resize
 	/// - called before updates
 	fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {}
@@ -118,7 +118,13 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				self.window = Some(window_handle.clone());
 				env_logger::init();
 				let mut wgpu = pollster::block_on(Renderer::new(window_handle.clone()));
-				self.app.init(&mut wgpu);
+				let sys = SystemInfo {
+					kb_inputs: &self.input_cache,
+					m_inputs: &self.mouse_cache,
+					frame_delta: &self.frame_delta,
+					win_size: Vec2::from_u32_tuple(DEFAULT_SIZE),
+				};
+				self.app.init(sys, &mut wgpu);
 				self.renderer = Some(wgpu);
 			}
 			Err(e) => {
