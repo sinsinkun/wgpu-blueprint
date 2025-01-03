@@ -1,5 +1,4 @@
 @group(0) @binding(0) var<uniform> mvp: MVP;
-@group(0) @binding(1) var<uniform> color: vec4f;
 @group(0) @binding(2) var tx_sampler: sampler;
 @group(0) @binding(3) var texture1: texture_2d<f32>;
 @group(0) @binding(4) var texture2: texture_2d<f32>;

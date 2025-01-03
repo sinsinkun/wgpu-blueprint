@@ -369,10 +369,10 @@ impl<'a> Renderer<'a> {
         },
         count: None,
       },
-      // albedo color
+      // gen f32 buffer
       BindGroupLayoutEntry {
         binding: 1,
-        visibility: ShaderStages::FRAGMENT,
+        visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
         ty: BindingType::Buffer {
           ty: BufferBindingType::Uniform,
           has_dynamic_offset: true,
@@ -564,8 +564,8 @@ impl<'a> Renderer<'a> {
       usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
       mapped_at_creation: false,
     });
-    // create albedo buffer
-    let albedo_buffer = self.device.create_buffer(&BufferDescriptor {
+    // create general f32 buffer
+    let gen_buffer = self.device.create_buffer(&BufferDescriptor {
       label: Some("albedo-uniform-buffer"),
       size: min_stride as u64 * max_obj_count as u64,
       usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
@@ -612,7 +612,7 @@ impl<'a> Renderer<'a> {
     });
     // create bind entries
     let mvp_size = NonZeroU64::new(192); // 4 bytes * 4 rows * 4 columns * 3 matrices
-    let albedo_size = NonZeroU64::new(16); // 4 bytes * 4
+    let gen_size = NonZeroU64::new(256); // 64 f32 values
     let mut bind_entries: Vec<BindGroupEntry> = vec![
       BindGroupEntry {
         binding: 0,
@@ -623,7 +623,7 @@ impl<'a> Renderer<'a> {
       BindGroupEntry {
         binding: 1,
         resource: BindingResource::Buffer(BufferBinding {
-          buffer: &albedo_buffer, offset: 0, size: albedo_size
+          buffer: &gen_buffer, offset: 0, size: gen_size
         })
       },
       BindGroupEntry {
@@ -663,7 +663,7 @@ impl<'a> Renderer<'a> {
     });
 
     // create output
-    let mut output_entries = vec![mvp_buffer, albedo_buffer];
+    let mut output_entries = vec![mvp_buffer, gen_buffer];
     if vertex_type == RPipelineSetup::VERTEX_TYPE_ANIM {
       output_entries.push(joints_buffer);
     }
@@ -819,7 +819,7 @@ impl<'a> Renderer<'a> {
     let w2 = (self.config.width / 2) as f32;
     let h2 = (self.config.height / 2) as f32;
     let proj = match cam.cam_type {
-      1 => Mat4::ortho(-w2, w2, h2, -h2, cam.near, cam.far),
+      1 => Mat4::ortho(-w2, w2, -h2, h2, cam.near, cam.far),
       2 => Mat4::perspective(cam.fov_y, w2/h2, cam.near, cam.far),
       _ => Mat4::identity()
     };
@@ -836,11 +836,13 @@ impl<'a> Renderer<'a> {
       (stride * obj.pipe_index as u32) as u64, 
       bytemuck::cast_slice(&mvp)
     );
+
     self.queue.write_buffer(
       &pipe.bind_group0.entries[1], 
       (stride * obj.pipe_index as u32) as u64, 
       bytemuck::cast_slice(update.color)
     );
+
     // merge animation matrices into single buffer
     if pipe.max_joints_count > 0 && update.anim_transforms.len() > 0 {
       let mut anim_buffer: Vec<f32> = Vec::new();

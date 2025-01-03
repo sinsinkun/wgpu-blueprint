@@ -202,6 +202,7 @@ pub struct RObjectUpdate<'a> {
   pub color: &'a [f32; 4],
   pub uniforms: Vec<&'a [u8]>,
   pub anim_transforms: Vec<[f32; 16]>,
+  pub buf: Option<&'a [f32; 64]>,
 }
 impl Default for RObjectUpdate<'_> {
   fn default() -> Self {
@@ -216,6 +217,7 @@ impl Default for RObjectUpdate<'_> {
       color: &[1.0, 1.0, 1.0, 1.0],
       uniforms: Vec::new(),
       anim_transforms: Vec::new(),
+      buf: None,
     }
   }
 }
@@ -232,6 +234,7 @@ impl<'a> RObjectUpdate<'a> {
       color: &[1.0, 1.0, 1.0, 1.0],
       uniforms: Vec::new(),
       anim_transforms: Vec::new(),
+      buf: None,
     }
   }
   pub fn with_camera(mut self, camera: &'a RCamera) -> Self {

@@ -18,7 +18,7 @@ use renderer::{RPipelineId, Renderer};
 mod app;
 use app::App;
 
-const RENDER_FPS_LOCK: Duration = Duration::from_millis(100);
+const RENDER_FPS_LOCK: Duration = Duration::from_millis(15);
 const DEFAULT_SIZE: (u32, u32) = (800, 600);
 
 #[derive(Debug, PartialEq, Clone, Copy)]
