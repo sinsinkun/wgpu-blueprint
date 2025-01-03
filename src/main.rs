@@ -18,7 +18,7 @@ use renderer::{RPipelineId, Renderer, Vec2};
 mod app;
 use app::App;
 
-const RENDER_FPS_LOCK: Duration = Duration::from_millis(15);
+const RENDER_FPS_LOCK: Duration = Duration::from_millis(10);
 const DEFAULT_SIZE: (u32, u32) = (800, 600);
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -74,7 +74,7 @@ pub trait AppBase {
 	/// - update render object variables
 	/// - render to textures
 	/// output pipeline ids to render to screen
-	fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId>;
+	fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId>;
   /// actions to take after exiting event loop
 	/// - destroy dangling resources
 	fn cleanup(&mut self) {}
@@ -250,7 +250,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 					// run internal app updates
 					let pipes = self.app.update(sys, r);
 					// run render engine actions
-					match r.render_to_screen(pipes) {
+					match r.render_to_screen(&pipes) {
 						Ok(_) => (),
 						Err(SurfaceError::Lost | SurfaceError::Outdated) => {
 							println!("Err: surface was lost or outdated. Attempting to re-connect");
@@ -286,7 +286,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
           self.mouse_cache.right = MKBState::None;
         }
 				// wait until
-				let wait_until = Instant::now() + RENDER_FPS_LOCK;
+				let wait_until = Instant::now() + (RENDER_FPS_LOCK.mul_f32(0.5));
 				event_loop.set_control_flow(ControlFlow::WaitUntil(wait_until));
 			}
 			_ => (),

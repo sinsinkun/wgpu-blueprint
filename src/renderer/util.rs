@@ -190,12 +190,17 @@ impl RObjectSetup {
 }
 
 // helper for updating render object
+#[derive(Debug, Clone)]
+pub enum RRotation {
+  AxisAngle([f32; 3], f32),
+  Euler(f32, f32, f32)
+}
+
 #[derive(Debug)]
 pub struct RObjectUpdate<'a> {
   pub object_id: RObjectId,
   pub translate: &'a [f32; 3],
-  pub rotate_axis: &'a [f32; 3],
-  pub rotate_deg: f32,
+  pub rotate: RRotation,
   pub scale: &'a [f32; 3],
   pub visible: bool,
   pub camera: Option<&'a RCamera>,
@@ -210,8 +215,7 @@ impl Default for RObjectUpdate<'_> {
     RObjectUpdate {
       object_id: RObjectId(0, 0),
       translate: &[0.0, 0.0, 0.0],
-      rotate_axis: &[0.0, 0.0, 1.0],
-      rotate_deg: 0.0,
+      rotate: RRotation::AxisAngle([0.0, 0.0, 1.0], 0.0),
       scale: &[1.0, 1.0, 1.0],
       visible: true,
       camera: None,
@@ -228,8 +232,7 @@ impl<'a> RObjectUpdate<'a> {
     RObjectUpdate {
       object_id: shape.id,
       translate: &shape.position,
-      rotate_axis: &shape.rotate_axis,
-      rotate_deg: shape.rotate_deg,
+      rotate: RRotation::AxisAngle([0.0, 0.0, 1.0], 0.0),
       scale: &shape.scale,
       visible: shape.visible,
       camera: None,

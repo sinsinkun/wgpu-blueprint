@@ -81,9 +81,13 @@ pub struct RPipeline {
   // bind_group3: Option<RBindGroup>,
 }
 
+// (pipeline id, object id)
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct RObjectId (pub usize, pub usize);
+
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct RPipelineId (pub usize);
+
+// (texture id, msaa texture id, z-buffer texture id)
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
-pub struct RTextureId (pub usize);
+pub struct RTextureId (pub usize, pub usize, pub usize);

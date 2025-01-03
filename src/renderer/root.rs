@@ -248,9 +248,36 @@ impl<'a> Renderer<'a> {
         texture_size
       );
     }
+    
+    // create msaa texture
+    let msaa = self.device.create_texture(&wgpu::TextureDescriptor {
+      label: Some("msaa-texture"),
+      size: texture_size,
+      sample_count: 4,
+      mip_level_count: 1,
+      dimension: wgpu::TextureDimension::D2,
+      format: self.surface_format,
+      usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+      view_formats: &[]
+    });
+
+    // create z-buffer texture
+    let zbuffer = self.device.create_texture(&wgpu::TextureDescriptor {
+      label: Some("zbuffer-texture"),
+      size: texture_size,
+      sample_count: 4,
+      mip_level_count: 1,
+      dimension: wgpu::TextureDimension::D2,
+      format: wgpu::TextureFormat::Depth24Plus,
+      usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+      view_formats: &[]
+    });
+
     // add to cache
     self.textures.push(texture);
-    RTextureId(id)
+    self.textures.push(msaa);
+    self.textures.push(zbuffer);
+    RTextureId(id, id+1, id+2)
   }
   /// copies image (from path) onto texture
   pub fn update_texture(&mut self, texture_id: RTextureId, texture_path: &Path) {
@@ -312,12 +339,47 @@ impl<'a> Renderer<'a> {
     old_texture.destroy();
     self.textures[texture_id.0] = new_texture;
 
+    // create new msaa texture
+    let new_msaa = self.device.create_texture(&wgpu::TextureDescriptor {
+      label: Some("msaa-texture"),
+      size: texture_size,
+      sample_count: 4,
+      mip_level_count: 1,
+      dimension: wgpu::TextureDimension::D2,
+      format: self.surface_format,
+      usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+      view_formats: &[]
+    });
+    self.textures[texture_id.1].destroy();
+    self.textures[texture_id.1] = new_msaa;
+
+    // create new z-buffer texture
+    let new_zbuffer = self.device.create_texture(&wgpu::TextureDescriptor {
+      label: Some("zbuffer-texture"),
+      size: texture_size,
+      sample_count: 4,
+      mip_level_count: 1,
+      dimension: wgpu::TextureDimension::D2,
+      format: wgpu::TextureFormat::Depth24Plus,
+      usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+      view_formats: &[]
+    });
+    self.textures[texture_id.2].destroy();
+    self.textures[texture_id.2] = new_zbuffer;
+
     // update bind group
     if let Some(p_id) = pipeline_id {
       let new_bind_id = {
         let pipeline = &self.pipelines[p_id.0];
         let pipe = &pipeline.pipe;
-        self.add_bind_group0(pipe, pipeline.max_obj_count, Some(texture_id), None, pipeline.vertex_type, pipeline.max_joints_count) // TODO: handle resizing second texture
+        self.add_bind_group0(
+          pipe,
+          pipeline.max_obj_count,
+          Some(texture_id),
+          None,
+          pipeline.vertex_type,
+          pipeline.max_joints_count
+        ) // TODO: handle resizing second texture
       };
       let pipeline = &mut self.pipelines[p_id.0];
       pipeline.bind_group0 = new_bind_id;
@@ -812,7 +874,7 @@ impl<'a> Renderer<'a> {
     };
     pipe.objects.push(obj);
     let object_id = RObjectId(obj_data.pipeline_id.0, id);
-    self.update_object(RObjectUpdate{ object_id, ..Default::default()});
+    self.update_object(RObjectUpdate{ object_id, ..Default::default() });
     object_id
   }
   /// update existing render object attached to a pipeline
@@ -870,7 +932,10 @@ impl<'a> Renderer<'a> {
     };
     // model matrix
     let model_t = Mat4::translate(update.translate[0], update.translate[1], update.translate[2]);
-    let model_r = Mat4::rotate(&update.rotate_axis, update.rotate_deg);
+    let model_r = match update.rotate {
+      RRotation::AxisAngle(axis, angle) => { Mat4::rotate(&axis, angle) }
+      RRotation::Euler(x, y, z) => { Mat4::rotate_euler(x, y, z) }
+    };
     let model_s = Mat4::scale(update.scale[0], update.scale[1], update.scale[2]);
     let model = Mat4::multiply(&model_t, &Mat4::multiply(&model_s, &model_r));
     // view matrix
@@ -914,19 +979,20 @@ impl<'a> Renderer<'a> {
     &self,
     encoder: &mut CommandEncoder,
     target: TextureView,
+    msaa_view: TextureView,
+    zbuffer_view: TextureView,
     pipeline_ids: &[RPipelineId],
-    clear_color: Option<[f64;4]>
+    clear_color: Option<[f64;4]>,
   ) {
     let mut clear_clr = self.clear_color;
     if let Some(c) = clear_color {
       clear_clr = Color { r:c[0], g:c[1], b:c[2], a:c[3] };
     }
-    let view = self.msaa.create_view(&TextureViewDescriptor::default());
-    let zbuffer_view = self.zbuffer.create_view(&TextureViewDescriptor::default());
+
     let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
       label: Some("render-pass"),
       color_attachments: &[Some(RenderPassColorAttachment {
-        view: &view,
+        view: &msaa_view,
         resolve_target: Some(&target),
         ops: Operations {
           load: LoadOp::Clear(clear_clr),
@@ -968,15 +1034,22 @@ impl<'a> Renderer<'a> {
   /// runs rendering pipeline(s) on target texture
   pub fn render_on_texture(&mut self, pipeline_ids: &[RPipelineId], target_id: RTextureId, clear_color: Option<[f64;4]>) {
     let tx = &self.textures[target_id.0];
-    let target = tx.create_view(&TextureViewDescriptor::default());
+    let tx_msaa = &self.textures[target_id.1];
+    let tx_zbuffer = &self.textures[target_id.2];
+    let tvd = TextureViewDescriptor::default();
+    let target = tx.create_view(&tvd);
+    let view = tx_msaa.create_view(&tvd);
+    let zbuffer_view = tx_zbuffer.create_view(&tvd);
     let mut encoder = self.device.create_command_encoder(
       &wgpu::CommandEncoderDescriptor { label: Some("render-texture-encoder") }
     );
-    self.render_impl(&mut encoder, target, pipeline_ids, clear_color);
+    self.render_impl(&mut encoder, target, view, zbuffer_view, pipeline_ids, clear_color);
     self.queue.submit(std::iter::once(encoder.finish()));
   }
   /// overlays text string on target texture
-  pub fn render_str_on_texture(
+  /// - needs to be a blank texture
+  /// - to overlay on a different texture, it must be fed into texture 2
+  pub fn render_str_on_blank_texture(
     &mut self,
     texture_id: RTextureId,
     input: &str,
@@ -1014,11 +1087,14 @@ impl<'a> Renderer<'a> {
   /// - draws to window surface
   pub fn render_to_screen(&mut self, pipeline_ids: &Vec<RPipelineId>) -> Result<(), wgpu::SurfaceError> {
     let output = self.surface.get_current_texture()?;
-    let target = output.texture.create_view(&TextureViewDescriptor::default());
+    let tvd = TextureViewDescriptor::default();
+    let target = output.texture.create_view(&tvd);
+    let msaa_view = self.msaa.create_view(&tvd);
+    let zbuffer_view = self.zbuffer.create_view(&tvd);
     let mut encoder = self.device.create_command_encoder(
       &wgpu::CommandEncoderDescriptor { label: Some("render-encoder") }
     );
-    self.render_impl(&mut encoder, target, pipeline_ids, None);
+    self.render_impl(&mut encoder, target, msaa_view, zbuffer_view, pipeline_ids, None);
     self.queue.submit(std::iter::once(encoder.finish()));
     output.present();
     Ok(())
