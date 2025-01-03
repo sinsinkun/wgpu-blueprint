@@ -31,11 +31,11 @@ impl AppBase for App {
     self.fps = 1.0 / sys.frame_delta.as_secs_f32();
     let fps_txt = format!("FPS: {:.2}", 1.0 / sys.frame_delta.as_secs_f32());
     // change color based on mouse position
-    let mx = sys.m_inputs.position.x as f32 / sys.win_size.0 as f32;
-    let my = sys.m_inputs.position.y as f32 / sys.win_size.1 as f32;
+    let mx = sys.m_inputs.position.x / sys.win_size.x;
+    let my = sys.m_inputs.position.y / sys.win_size.y;
     // follow mouse
-    let ax = sys.m_inputs.position.x as f32 - (sys.win_size.0 as f32 / 2.0);
-    let ay = sys.m_inputs.position.y as f32 - (sys.win_size.1 as f32 / 2.0);
+    let ax = sys.m_inputs.position.x - (sys.win_size.x / 2.0);
+    let ay = sys.m_inputs.position.y - (sys.win_size.y / 2.0);
 
     // updater render objects for overlay
     renderer.update_object(RObjectUpdate{

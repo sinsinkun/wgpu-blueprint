@@ -256,11 +256,23 @@ impl<'a> RObjectUpdate<'a> {
 
 // simple helper object
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
-pub struct Vec2 { x: f32, y: f32 }
+pub struct Vec2 { pub x: f32, pub y: f32 }
 impl Vec2 {
   pub fn size_in_bytes() -> u32 { 2 * 3 }
   pub fn new(x: f32, y: f32) -> Self {
     Self { x, y }
+  }
+  pub fn from_tuple(t: (f32, f32)) -> Self {
+    Vec2 {
+      x: t.0,
+      y: t.1
+    }
+  }
+  pub fn from_u32_tuple(t: (u32, u32)) -> Self {
+    Vec2 {
+      x: t.0 as f32,
+      y: t.1 as f32,
+    }
   }
   pub fn as_array(&self) -> [f32; 2] {
     [self.x, self.y]

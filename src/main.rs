@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use winit::application::ApplicationHandler;
-use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::dpi::PhysicalSize;
 use winit::event::{Ime, KeyEvent, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{PhysicalKey, KeyCode};
@@ -13,7 +13,7 @@ use wgpu::SurfaceError;
 
 // custom components
 mod renderer;
-use renderer::{RPipelineId, Renderer};
+use renderer::{RPipelineId, Renderer, Vec2};
 
 mod app;
 use app::App;
@@ -28,24 +28,24 @@ pub enum MKBState { None, Pressed, Down, Released }
 pub struct MouseState {
   left: MKBState,
   right: MKBState,
-  instp: PhysicalPosition<f64>,
-  position: PhysicalPosition<f64>,
-  pos_delta: (f64, f64),
+  instp: Vec2,
+  position: Vec2,
+  pos_delta: Vec2,
 }
 impl MouseState {
   fn new() -> Self {
     Self {
       left: MKBState::None,
       right: MKBState::None,
-      instp: PhysicalPosition{ x:0.0, y:0.0 },
-      position: PhysicalPosition{ x:0.0, y:0.0 },
-      pos_delta: (0.0, 0.0),
+      instp: Vec2::new(0.0, 0.0),
+      position: Vec2::new(0.0, 0.0),
+      pos_delta: Vec2::new(0.0, 0.0),
     }
   }
   fn frame_sync(&mut self) {
     let dx = self.instp.x - self.position.x;
     let dy = self.instp.y - self.position.y;
-    self.pos_delta = (dx, dy);
+    self.pos_delta = Vec2::new(dx, dy);
     self.position = self.instp;
   }
 }
@@ -56,7 +56,7 @@ pub struct SystemInfo<'a> {
   kb_inputs: &'a HashMap<KeyCode, MKBState>,
   m_inputs: &'a MouseState,
   frame_delta: &'a Duration,
-  win_size: &'a (u32, u32),
+  win_size: Vec2,
 }
 
 #[allow(unused_variables)]
@@ -211,7 +211,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
         }
       }
       WindowEvent::CursorMoved { position, .. } => {
-        self.mouse_cache.instp = position;
+        self.mouse_cache.instp.x = position.x as f32;
       }
       WindowEvent::Ime(ime) => {
 				match ime {
@@ -243,7 +243,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 					kb_inputs: &self.input_cache,
           m_inputs: &self.mouse_cache,
           frame_delta: &self.frame_delta,
-          win_size: &self.window_size,
+          win_size: Vec2::from_u32_tuple(self.window_size),
 				};
 				if let Some(r) = &mut self.renderer {
 					// run internal app updates
