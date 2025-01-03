@@ -50,6 +50,8 @@ impl AppBase for App {
       translate: &[0.0, 0.0, -15.0],
       rotate_axis: &[0.0, 1.0, 0.0],
       rotate_deg:  mx * 10.0 - 5.0,
+      rect_size: Some([20.0, 10.0]),
+      rect_radius: 4.0,
       camera: Some(&RCamera::new_persp(90.0, 0.1, 1000.0)),
       ..Default::default()
     });

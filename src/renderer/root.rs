@@ -816,49 +816,22 @@ impl<'a> Renderer<'a> {
   }
   /// update existing render object attached to a pipeline
   pub fn update_object(&mut self, update: RObjectUpdate) {
+    let mvp = self.create_mvp(&update);
+    let buf = self.create_buf(&update);
     let pipe = &mut self.pipelines[update.object_id.0];
     let obj = &mut pipe.objects[update.object_id.1];
-    let cam = match update.camera {
-      Some(c) => c,
-      None => &self.default_cam
-    };
-
     obj.visible = update.visible;
-    // model matrix
-    let model_t = Mat4::translate(update.translate[0], update.translate[1], update.translate[2]);
-    let model_r = Mat4::rotate(&update.rotate_axis, update.rotate_deg);
-    let model_s = Mat4::scale(update.scale[0], update.scale[1], update.scale[2]);
-    let model = Mat4::multiply(&model_t, &Mat4::multiply(&model_s, &model_r));
-    // view matrix
-    let view_t = Mat4::translate(-cam.position[0], -cam.position[1], -cam.position[2]);
-    let view_r = Mat4::view_rot(&cam.position, &cam.look_at, &cam.up);
-    let view = Mat4::multiply(&view_r, &view_t);
-    // projection matrix
-    let w2 = (self.config.width / 2) as f32;
-    let h2 = (self.config.height / 2) as f32;
-    let proj = match cam.cam_type {
-      1 => Mat4::ortho(-w2, w2, -h2, h2, cam.near, cam.far),
-      2 => Mat4::perspective(cam.fov_y, w2/h2, cam.near, cam.far),
-      _ => Mat4::identity()
-    };
-    // merge together
-    let mut mvp: [f32; 48] = [0.0; 48]; // 16 * 3 = 48
-    for i in 0..48 {
-      if i < 16 { mvp[i] = model[i]; }
-      else if i < 32 { mvp[i] = view[i - 16]; }
-      else { mvp[i] = proj[i - 32]; }
-    }
+
     let stride = self.limits.min_uniform_buffer_offset_alignment;
     self.queue.write_buffer(
       &pipe.bind_group0.entries[0], 
       (stride * obj.pipe_index as u32) as u64, 
       bytemuck::cast_slice(&mvp)
     );
-
     self.queue.write_buffer(
       &pipe.bind_group0.entries[1], 
       (stride * obj.pipe_index as u32) as u64, 
-      bytemuck::cast_slice(update.color)
+      bytemuck::cast_slice(&buf.as_slice())
     );
 
     // merge animation matrices into single buffer
@@ -886,6 +859,53 @@ impl<'a> Renderer<'a> {
         }
       }
     }
+  }
+  /// part of update_object process
+  /// - creates MVP matrix
+  fn create_mvp(&self, update: &RObjectUpdate) -> [f32; 48] {
+    let cam = match update.camera {
+      Some(c) => c,
+      None => &self.default_cam
+    };
+    // model matrix
+    let model_t = Mat4::translate(update.translate[0], update.translate[1], update.translate[2]);
+    let model_r = Mat4::rotate(&update.rotate_axis, update.rotate_deg);
+    let model_s = Mat4::scale(update.scale[0], update.scale[1], update.scale[2]);
+    let model = Mat4::multiply(&model_t, &Mat4::multiply(&model_s, &model_r));
+    // view matrix
+    let view_t = Mat4::translate(-cam.position[0], -cam.position[1], -cam.position[2]);
+    let view_r = Mat4::view_rot(&cam.position, &cam.look_at, &cam.up);
+    let view = Mat4::multiply(&view_r, &view_t);
+    // projection matrix
+    let w2 = (self.config.width / 2) as f32;
+    let h2 = (self.config.height / 2) as f32;
+    let proj = match cam.cam_type {
+      1 => Mat4::ortho(-w2, w2, -h2, h2, cam.near, cam.far),
+      2 => Mat4::perspective(cam.fov_y, w2/h2, cam.near, cam.far),
+      _ => Mat4::identity()
+    };
+    // merge together
+    let mut mvp: [f32; 48] = [0.0; 48]; // 16 * 3 = 48
+    for i in 0..48 {
+      if i < 16 { mvp[i] = model[i]; }
+      else if i < 32 { mvp[i] = view[i - 16]; }
+      else { mvp[i] = proj[i - 32]; }
+    }
+    mvp
+  }
+  /// part of update_object process
+  /// - creates general uniform buffer
+  fn create_buf(&self, update: &RObjectUpdate) -> Vec<f32> {
+    // note: max size is 64
+    let mut buf: Vec<f32> = Vec::new();
+    // albedo
+    buf.append(&mut Vec::from(update.color));
+    // rect size
+    if let Some(rs) = update.rect_size {
+      buf.append(&mut Vec::from(rs));
+      buf.push(update.rect_radius);
+    }
+    buf
   }
   /// separate out pipeline implementation to resolve ownership issues
   /// - shared by render_on_texture and render_to_screen

@@ -10,6 +10,7 @@ struct MVP {
 struct Buf {
   albedo: vec4f,
   rect_size: vec2f,
+  radius: f32,
 }
 
 struct VertIn {
@@ -36,13 +37,34 @@ fn vertexMain(input: VertIn) -> VertOut {
 
 @fragment
 fn fragmentMain(input: VertOut) -> @location(0) vec4f {
-  let r = 0.2;
-  let tl_dx = input.uv.x - r;
-  let tl_dy = input.uv.y - r;
-  if input.uv.x < r && input.uv.y < r {
-    if tl_dx*tl_dx + tl_dy*tl_dy > r*r {
-      discard;
-    }
+  let r = buf.radius;
+  let x = input.uv.x * buf.rect_size.x;
+  let y = input.uv.y * buf.rect_size.y;
+
+  // top left
+  var rx = x - r;
+  var ry = y - r;
+  if x < r && y < r && (rx * rx + ry * ry > r * r) {
+    discard;
   }
+  // top right
+  rx = x - (buf.rect_size.x - r);
+  ry = y - r;
+  if x > (buf.rect_size.x - r) && y < r && (rx * rx + ry * ry > r * r) {
+    discard;
+  }
+  // bottom left
+  rx = x - r;
+  ry = y - (buf.rect_size.y - r);
+  if x < r && y > (buf.rect_size.y - r) && (rx * rx + ry * ry > r * r) {
+    discard;
+  }
+  // bottom right
+  rx = x - (buf.rect_size.x - r);
+  ry = y - (buf.rect_size.y - r);
+  if x > (buf.rect_size.x - r) && y > (buf.rect_size.y - r) && (rx * rx + ry * ry > r * r) {
+    discard;
+  }
+
   return buf.albedo;
 }
