@@ -328,7 +328,7 @@ impl<'a> Renderer<'a> {
   /// - defines shaders + uniforms
   pub fn add_pipeline(&mut self, setup: RPipelineSetup) -> RPipelineId {
     let id: usize = self.pipelines.len();
-    // build render pipeline
+    // define pipeline config
     let shader_mod = self.build_shader_module(&setup);
     let mut bind_group_container: Vec<&BindGroupLayout> = vec![];
     let bind_group0_layout = self.build_bind_group0_layout(&setup);
@@ -359,6 +359,7 @@ impl<'a> Renderer<'a> {
         attributes: &vertex_attr_static,
       }
     };
+    // build render pipeline
     let pipeline = self.device.create_render_pipeline(&RenderPipelineDescriptor {
       label: Some("render-pipeline"),
       layout: Some(&pipeline_layout),
