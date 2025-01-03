@@ -68,17 +68,13 @@ pub trait AppBase {
 	/// actions to take on window resize
 	/// - called before updates
 	fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {}
-	/// actions to take to update logic
+	/// actions to take per frame
 	/// - respond to inputs
 	/// - state changes
-	fn update(&mut self, sys: SystemInfo);
-	/// actions to take just before render
-	/// - prepare render objects
-	/// - update colors
-	/// - finalize positions
-	/// - update/upload shader variables
-  /// - output pipeline ids to render
-	fn render(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId>;
+	/// - update render object variables
+	/// - render to textures
+	/// output pipeline ids to render to screen
+	fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> &Vec<RPipelineId>;
   /// actions to take after exiting event loop
 	/// - destroy dangling resources
 	fn cleanup(&mut self) {}
@@ -249,11 +245,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
           frame_delta: &self.frame_delta,
           win_size: &self.window_size,
 				};
-				// run internal app updates
-				self.app.update(sys);
 				if let Some(r) = &mut self.renderer {
-					// run internal render updates
-					let pipes = self.app.render(sys, r);
+					// run internal app updates
+					let pipes = self.app.update(sys, r);
 					// run render engine actions
 					match r.render_to_screen(pipes) {
 						Ok(_) => (),
