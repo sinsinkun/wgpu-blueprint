@@ -104,7 +104,7 @@ impl RCamera {
 #[derive(Debug, Default, Clone)]
 pub enum RShader<'a> {
   #[default]
-  Texture, FlatColor, Text, Custom(&'a str)
+  Texture, Text, FlatColor, RoundedRect, Custom(&'a str)
 }
 #[derive(Debug, Default)]
 pub enum RUniformVisibility {

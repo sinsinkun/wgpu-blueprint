@@ -432,8 +432,9 @@ impl<'a> Renderer<'a> {
     // translate shader
     let shader = match setup.shader {
       RShader::Texture => { include_str!("../embed_assets/base.wgsl") }
-      RShader::FlatColor => { include_str!("../embed_assets/flat_color.wgsl") }
       RShader::Text => { include_str!("../embed_assets/text.wgsl") }
+      RShader::FlatColor => { include_str!("../embed_assets/flat_color.wgsl") }
+      RShader::RoundedRect => { include_str!("../embed_assets/rounded_rect.wgsl") }
       RShader::Custom(s) => { s }
     };
     // build render pipeline

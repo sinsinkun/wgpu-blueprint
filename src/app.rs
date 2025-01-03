@@ -85,7 +85,7 @@ impl App {
   }
   fn init_rect(&mut self, renderer: &mut Renderer) {
     let pipe3 = renderer.add_pipeline(RPipelineSetup {
-      shader: RShader::Custom(include_str!("embed_assets/rounded_rect.wgsl")),
+      shader: RShader::RoundedRect,
       ..Default::default()
     });
     let rect_data = Primitives::rect_indexed(20.0, 10.0, 0.0);
