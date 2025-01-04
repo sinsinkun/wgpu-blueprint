@@ -181,20 +181,6 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 							event_loop.exit();
 						}
 					}
-					PhysicalKey::Code(KeyCode::F1) => {
-						if state.is_pressed() && !repeat {
-							if let Some(r) = &mut self.renderer {
-								r.clear_color = wgpu::Color::BLUE;
-							}
-						}
-					}
-					PhysicalKey::Code(KeyCode::F2) => {
-						if state.is_pressed() && !repeat {
-							if let Some(r) = &mut self.renderer {
-								r.clear_color = wgpu::Color::GREEN;
-							}
-						}
-					}
 					_ => ()
 				}
 			}

@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+use std::default;
+use std::ops::{Add, AddAssign, Sub, SubAssign};
+
 pub const PI: f32 = 3.14159265;
 
 /**
@@ -7,16 +10,62 @@ pub const PI: f32 = 3.14159265;
  * If you need to use them to perform regular matrix transformations,
  * please transpose the result.
  */
-pub struct Mat4;
+pub struct Mat4 {
+  a00: f32, a01: f32, a02: f32, a03: f32,
+  a10: f32, a11: f32, a12: f32, a13: f32,
+  a20: f32, a21: f32, a22: f32, a23: f32,
+  a30: f32, a31: f32, a32: f32, a33: f32,
+}
 impl Mat4 {
-  pub fn size_in_bytes() -> u32 { 4 * 4 * 4 * 3 }
-  pub fn identity() -> [f32; 16] {
+  pub fn from_row_major(arr: [f32; 16]) -> Self {
+    Self {
+      a00: arr[0], a01: arr[1], a02: arr[2], a03: arr[3],
+      a10: arr[4], a11: arr[5], a12: arr[6], a13: arr[7],
+      a20: arr[8], a21: arr[9], a22: arr[10], a23: arr[11],
+      a30: arr[12], a31: arr[13], a32: arr[14], a33: arr[15],
+    }
+  }
+  pub fn from_col_major(arr: [f32; 16]) -> Self {
+    Self {
+      a00: arr[0], a01: arr[4], a02: arr[8], a03: arr[12],
+      a10: arr[1], a11: arr[5], a12: arr[9], a13: arr[13],
+      a20: arr[2], a21: arr[6], a22: arr[10], a23: arr[14],
+      a30: arr[3], a31: arr[7], a32: arr[11], a33: arr[15],
+    }
+  }
+  pub fn identity() -> Self {
+    Self {
+      a00: 1.0, a01: 0.0, a02: 0.0, a03: 0.0,
+      a10: 0.0, a11: 1.0, a12: 0.0, a13: 0.0,
+      a20: 0.0, a21: 0.0, a22: 1.0, a23: 0.0,
+      a30: 0.0, a31: 0.0, a32: 0.0, a33: 1.0,
+    }
+  }
+  pub fn as_array(&self) -> [f32; 16] {
     [
-      1.0, 0.0, 0.0, 0.0,
-      0.0, 1.0, 0.0, 0.0,
-      0.0, 0.0, 1.0, 0.0,
-      0.0, 0.0, 0.0, 1.0
+      self.a00, self.a10, self.a20, self.a30,
+      self.a01, self.a11, self.a21, self.a31,
+      self.a02, self.a12, self.a22, self.a32,
+      self.a03, self.a13, self.a23, self.a33
     ]
+  }
+  pub fn row(&self, n: u8) -> [f32; 4] {
+    match n {
+      0 => [self.a00, self.a01, self.a02, self.a03],
+      1 => [self.a10, self.a11, self.a12, self.a13],
+      2 => [self.a20, self.a21, self.a22, self.a23],
+      3 => [self.a30, self.a31, self.a32, self.a33],
+      _ => [0.0, 0.0, 0.0, 0.0]
+    }
+  }
+  pub fn col(&self, n:u8) -> [f32; 4] {
+    match n {
+      0 => [self.a00, self.a10, self.a20, self.a30],
+      1 => [self.a01, self.a11, self.a21, self.a31],
+      2 => [self.a02, self.a12, self.a22, self.a32],
+      3 => [self.a03, self.a13, self.a23, self.a33],
+      _ => [0.0, 0.0, 0.0, 0.0]
+    }
   }
   pub fn perspective(fov_y: f32, aspect_ratio: f32, near: f32, far: f32) -> [f32; 16] {
     let f = f32::tan(PI * 0.5 - 0.5 * fov_y * PI / 180.0);
@@ -238,7 +287,8 @@ impl Mat4 {
     let det = Self::determinant_4x4(src);
     if det == 0.0 {
       println!("ERR: cannot inverse matrix with determinant of 0 - returning identity");
-      return Mat4::identity();
+      let idm = Mat4::identity();
+      return idm.as_array();
     }
 
     let adj = Self::adjugate_4x4(src);
@@ -249,14 +299,14 @@ impl Mat4 {
 
     dst
   }
-  pub fn view_rot(cam: &[f32; 3], target: &[f32; 3], up: &[f32; 3]) ->  [f32;16] {
-    let fwd = Vec3::normalize(&Vec3::subtract(cam, target));
-    let right = Vec3::normalize(&Vec3::cross(up, &fwd));
-    let n_up = Vec3::normalize(&Vec3::cross(&fwd, &right));
+  pub fn view_rot(cam: &Vec3, target: &Vec3, up: &Vec3) ->  [f32; 16] {
+    let fwd = (*cam - *target).normalize();
+    let right = up.cross(fwd).normalize();
+    let n_up = fwd.cross(right).normalize();
     [
-      right[0], n_up[0], fwd[0], 0.0,
-      right[1], n_up[1], fwd[1], 0.0,
-      right[2], n_up[2], fwd[2], 0.0,
+      right.x, n_up.x, fwd.x, 0.0,
+      right.y, n_up.y, fwd.y, 0.0,
+      right.z, n_up.z, fwd.z, 0.0,
       0.0, 0.0, 0.0, 1.0
     ]
   }
@@ -269,62 +319,181 @@ impl Mat4 {
     }
     out
   }
-  pub fn print(mat: &[f32; 16]) -> String {
-    let mut out = "[".to_owned();
-    for i in 0..16 {
-      out += &format!("{:.4}", mat[i]);
-      if i != 0 && i != 15 && i % 4 == 3 { out += ",\n   " }
-      else if i != 15 { out += ", "}
-    }
-    out += "]";
-    out
+}
+
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
+pub struct Vec4 {
+  pub x: f32,
+  pub y: f32,
+  pub z: f32,
+  pub w: f32,
+}
+impl Vec4 {
+  pub fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
+    Self { x, y, z, w }
+  }
+  pub fn from_array(arr: [f32; 4]) -> Self {
+    Self { x: arr[0], y: arr[1], z: arr[2], w: arr[3] }
+  }
+  pub fn as_array(&self) -> [f32; 4] {
+    [self.x, self.y, self.z, self.w]
+  }
+  pub fn normalize(&self) -> Vec4 {
+    let n = self.magnitude();
+    if n < 0.00001 { return Vec4::new(0.0, 0.0, 0.0, 0.0) };
+    Vec4::new(self.x / n, self.y / n, self.z / n, self.w / n)
+  }
+  pub fn magnitude(&self) -> f32 {
+    f32::sqrt(
+      self.x * self.x + self.y * self.y + 
+      self.z * self.z + self.w * self.w
+    )
+  }
+}
+impl Add for Vec4 {
+  type Output = Vec4;
+  fn add(self, rhs: Self) -> Self::Output {
+    Vec4::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z, self.w + rhs.w)
+  }
+}
+impl AddAssign for Vec4 {
+  fn add_assign(&mut self, rhs: Self) {
+    self.x += rhs.x;
+    self.y += rhs.y;
+    self.z += rhs.z;
+    self.w += rhs.w;
+  }
+}
+impl Sub for Vec4 {
+  type Output = Vec4;
+  fn sub(self, rhs: Self) -> Self::Output {
+    Vec4::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z, self.w - rhs.w)
+  }
+}
+impl SubAssign for Vec4 {
+  fn sub_assign(&mut self, rhs: Self) {
+    self.x -= rhs.x;
+    self.y -= rhs.y;
+    self.z -= rhs.z;
+    self.w -= rhs.w;
   }
 }
 
-pub struct Vec3;
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
+pub struct Vec3 {
+  pub x: f32,
+  pub y: f32,
+  pub z: f32,
+}
 impl Vec3 {
-  pub fn size_in_bytes() -> u32 { 3 * 3 }
-  pub fn new(x: f32, y:f32, z:f32) -> [f32; 3] {
-    [x, y, z]
+  pub fn new(x: f32, y: f32, z: f32) -> Vec3 {
+    Self { x, y, z }
   }
-  pub fn add(v1: &[f32; 3], v2: &[f32; 3]) -> [f32; 3] {
-    [
-      v1[0] + v2[0],
-      v1[1] + v2[1],
-      v1[2] + v2[2]
-    ]
+  pub fn from_array(arr: [f32; 3]) -> Self {
+    Self { x: arr[0], y: arr[1], z: arr[2] }
   }
-  pub fn subtract(v1: &[f32; 3], v2: &[f32; 3]) -> [f32; 3] {
-    [
-      v1[0] - v2[0],
-      v1[1] - v2[1],
-      v1[2] - v2[2]
-    ]
+  pub fn as_array(&self) -> [f32; 3] {
+    [self.x, self.y, self.z]
   }
-  pub fn dot(v1: &[f32; 3], v2: &[f32; 3]) -> f32 {
-    let mut out = v1[0] * v2[0];
-    out = out + v1[1] * v2[1];
-    out = out + v1[2] * v2[2];
+  pub fn dot(&self, rhs: Vec3) -> f32 {
+    let mut out = self.x * rhs.x;
+    out = out + self.y * rhs.y;
+    out = out + self.z * rhs.z;
     out
   }
-  pub fn cross(v1: &[f32; 3], v2: &[f32; 3]) -> [f32; 3] {
-    [
-      v1[1] * v2[2] - v1[2] * v2[1],
-      v1[2] * v2[0] - v1[0] * v2[2],
-      v1[0] * v2[1] - v1[1] * v2[0]
-    ]
+  pub fn cross(&self, rhs: Vec3) -> Vec3 {
+    Vec3::new(
+      self.y * rhs.z - self.z * rhs.y,
+      self.z * rhs.x - self.x * rhs.z,
+      self.x * rhs.y - self.y * rhs.x
+    )
   }
-  pub fn normalize(v: &[f32; 3]) -> [f32; 3] {
-    let n = f32::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    if n < 0.00001 { return [0.0, 0.0, 0.0] }
-    [
-      v[0] / n,
-      v[1] / n,
-      v[2] / n
-    ]
+  pub fn normalize(&self) -> Vec3 {
+    let n = self.magnitude();
+    if n < 0.00001 { return Vec3::new(0.0, 0.0, 0.0) };
+    Vec3::new(self.x / n, self.y / n, self.z / n)
   }
-  pub fn magnitude(v: &[f32; 3]) -> f32 {
-    f32::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+  pub fn magnitude(&self) -> f32 {
+    f32::sqrt(self.x * self.x + self.y * self.y + self.z * self.z)
+  }
+}
+impl Add for Vec3 {
+  type Output = Vec3;
+  fn add(self, rhs: Self) -> Self::Output {
+    Vec3::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+  }
+}
+impl AddAssign for Vec3 {
+  fn add_assign(&mut self, rhs: Self) {
+    self.x += rhs.x;
+    self.y += rhs.y;
+    self.z += rhs.z;
+  }
+}
+impl Sub for Vec3 {
+  type Output = Vec3;
+  fn sub(self, rhs: Self) -> Self::Output {
+    Vec3::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
+  }
+}
+impl SubAssign for Vec3 {
+  fn sub_assign(&mut self, rhs: Self) {
+    self.x -= rhs.x;
+    self.y -= rhs.y;
+    self.z -= rhs.z;
+  }
+}
+
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
+pub struct Vec2 { pub x: f32, pub y: f32 }
+impl Vec2 {
+  pub fn new(x: f32, y: f32) -> Self {
+    Self { x, y }
+  }
+  pub fn from_tuple(t: (f32, f32)) -> Self {
+    Vec2 {
+      x: t.0,
+      y: t.1
+    }
+  }
+  pub fn from_u32_tuple(t: (u32, u32)) -> Self {
+    Vec2 {
+      x: t.0 as f32,
+      y: t.1 as f32,
+    }
+  }
+  pub fn as_array(&self) -> [f32; 2] {
+    [self.x, self.y]
+  }
+  pub fn magnitude(&self) -> f32 {
+    f32::sqrt(self.x * self.x + self.y * self.y)
+  }
+  pub fn dot(&self, rhs: Vec2) -> f32 {
+    self.x * rhs.x + self.y * rhs.y
+  }
+}
+impl Add for Vec2 {
+  type Output = Vec2;
+  fn add(self, rhs: Self) -> Self::Output {
+    Vec2::new(self.x + rhs.x, self.y + rhs.y)
+  }
+}
+impl AddAssign for Vec2 {
+  fn add_assign(&mut self, rhs: Self) {
+    self.x += rhs.x;
+    self.y += rhs.y;
+  }
+}
+impl Sub for Vec2 {
+  type Output = Vec2;
+  fn sub(self, rhs: Self) -> Self::Output {
+    Vec2::new(self.x - rhs.x, self.y - rhs.y)
+  }
+}
+impl SubAssign for Vec2 {
+  fn sub_assign(&mut self, rhs: Self) {
+    self.x -= rhs.x;
+    self.y -= rhs.y;
   }
 }
 
@@ -409,7 +578,9 @@ mod lin_alg_tests {
     let model = Mat4::multiply(&model_r, &model_t);
     // view
     let view_t = Mat4::translate(-0.0, -0.0, -200.0);
-    let view_r = Mat4::view_rot(&[0.0, 0.0, 200.0], &[0.0, 0.0, 0.0], &[0.0, 1.0, 0.0]);
+    let view_r = Mat4::view_rot(
+      &Vec3::new(0.0, 0.0, 200.0), &Vec3::new(0.0, 0.0, 0.0), &Vec3::new(0.0, 1.0, 0.0)
+    );
     let view = Mat4::multiply(&view_r, &view_t);
     // proj
     let proj = Mat4::perspective(60.0, 600.0/800.0, 1.0, 1000.0);
@@ -419,8 +590,7 @@ mod lin_alg_tests {
     let p: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
     let clip_p = Mat4::multiply_vec4(&mvp, &p);
 
-    let mvp_txt = Mat4::print(&mvp);
-    println!("mvp: {mvp_txt} x p: {p:?} = clip_p: {clip_p:.4?}\n");
+    println!("mvp: {mvp:?} x p: {p:?} = clip_p: {clip_p:.4?}\n");
     assert!(true); // use cargo test mvp_test -- --nocapture
   }
 }

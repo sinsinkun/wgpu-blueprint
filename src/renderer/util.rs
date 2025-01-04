@@ -3,6 +3,7 @@ use std::{default, ops::{Add, AddAssign, Sub, SubAssign}};
 use ab_glyph::Rect;
 
 use super::*;
+use crate::vec3f;
 
 // helper for defining object transform data
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -63,12 +64,12 @@ impl Shape {
 }
 
 // helper for defining camera/view matrix
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RCamera {
   pub cam_type: u8,
-  pub position: [f32; 3],
-  pub look_at: [f32; 3],
-  pub up: [f32; 3],
+  pub position: Vec3,
+  pub look_at: Vec3,
+  pub up: Vec3,
   pub fov_y: f32,
   pub near: f32,
   pub far: f32,
@@ -79,9 +80,9 @@ impl RCamera {
   pub fn new_ortho(near: f32, far: f32) -> Self {
     Self {
       cam_type: RCamera::ORTHOGRAPHIC,
-      position: [0.0, 0.0, 100.0],
-      look_at: [0.0, 0.0, 0.0],
-      up: [0.0, 1.0, 0.0],
+      position: vec3f!(0.0, 0.0, 100.0),
+      look_at: vec3f!(0.0, 0.0, 0.0),
+      up: vec3f!(0.0, 1.0, 0.0),
       fov_y: 0.0,
       near,
       far,
@@ -90,9 +91,9 @@ impl RCamera {
   pub fn new_persp(fov_y: f32, near: f32, far: f32) -> Self {
     Self {
       cam_type: RCamera::PERSPECTIVE,
-      position: [0.0, 0.0, 1.0],
-      look_at: [0.0, 0.0, 0.0],
-      up: [0.0, 1.0, 0.0],
+      position: vec3f!(0.0, 0.0, 1.0),
+      look_at: vec3f!(0.0, 0.0, 0.0),
+      up: vec3f!(0.0, 1.0, 0.0),
       fov_y,
       near,
       far,
@@ -254,54 +255,5 @@ impl<'a> RObjectUpdate<'a> {
   pub fn with_anim(mut self, transforms: Vec<[f32; 16]>) -> Self {
     self.anim_transforms = transforms;
     self
-  }
-}
-
-// simple helper object
-#[derive(Debug, Default, PartialEq, Clone, Copy)]
-pub struct Vec2 { pub x: f32, pub y: f32 }
-impl Vec2 {
-  pub fn size_in_bytes() -> u32 { 2 * 3 }
-  pub fn new(x: f32, y: f32) -> Self {
-    Self { x, y }
-  }
-  pub fn from_tuple(t: (f32, f32)) -> Self {
-    Vec2 {
-      x: t.0,
-      y: t.1
-    }
-  }
-  pub fn from_u32_tuple(t: (u32, u32)) -> Self {
-    Vec2 {
-      x: t.0 as f32,
-      y: t.1 as f32,
-    }
-  }
-  pub fn as_array(&self) -> [f32; 2] {
-    [self.x, self.y]
-  }
-}
-impl Add for Vec2 {
-  type Output = Vec2;
-  fn add(self, rhs: Self) -> Self::Output {
-    Vec2::new(self.x + rhs.x, self.y + rhs.y)
-  }
-}
-impl AddAssign for Vec2 {
-  fn add_assign(&mut self, rhs: Self) {
-    self.x += rhs.x;
-    self.y += rhs.y;
-  }
-}
-impl Sub for Vec2 {
-  type Output = Vec2;
-  fn sub(self, rhs: Self) -> Self::Output {
-    Vec2::new(self.x - rhs.x, self.y - rhs.y)
-  }
-}
-impl SubAssign for Vec2 {
-  fn sub_assign(&mut self, rhs: Self) {
-    self.x -= rhs.x;
-    self.y -= rhs.y;
   }
 }
