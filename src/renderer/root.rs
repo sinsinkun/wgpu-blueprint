@@ -1047,7 +1047,7 @@ impl<'a> Renderer<'a> {
     self.queue.submit(std::iter::once(encoder.finish()));
   }
   /// overlays text string on target texture
-  /// - needs to be a blank texture
+  /// - non-text will be overwritten with transparent pixels
   /// - to overlay on a different texture, it must be fed into texture 2
   pub fn render_str_on_blank_texture(
     &mut self,
