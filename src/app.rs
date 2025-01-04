@@ -42,12 +42,19 @@ impl AppBase for App {
     // follow mouse
     let ax = sys.m_inputs.position.x - (sys.win_size.x / 2.0);
     let ay = sys.m_inputs.position.y - (sys.win_size.y / 2.0);
+    // set rotation
+    let rx = if mx > 0.8 { (mx - 0.8) * 20.0 }
+    else if mx < 0.2 { (mx - 0.2) * 20.0 }
+    else { 0.0 };
+    let ry = if my > 0.8 { (my - 0.8) * 20.0 }
+    else if my < 0.2 { (my - 0.2) * 20.0 }
+    else { 0.0 };
 
     // update inner screen
     renderer.update_object(RObjectUpdate{
       object_id: self.shapes[0].id,
       translate: &[0.0, 0.0, -6.5],
-      rotate: RRotation::Euler(my * 2.0 - 1.0, mx * 2.0 - 1.0, 0.0),
+      rotate: RRotation::Euler(ry, rx, 0.0),
       camera: Some(&self.camera_3d),
       color: &[1.0 - my, 0.2, mx, 1.0],
       ..Default::default()
@@ -72,9 +79,9 @@ impl AppBase for App {
 
     // render fps text to overlay
     renderer.render_str_on_blank_texture(
-      self.textures[1], &fps_txt, 60.0, [0x34, 0xff, 0x34, 0xff], [10.0, 40.0], 2.0
+      self.textures[1], &fps_txt, 80.0, [0x34, 0xff, 0x34, 0xff], [10.0, 60.0], 5.0
     );
-    vec!(self.pipelines[0])
+    vec!(self.pipelines[0], self.pipelines[1])
   }
 }
 impl App {
@@ -100,7 +107,7 @@ impl App {
       shader: RShader::FlatColor,
       ..Default::default()
     });
-    let cir_data = Primitives::reg_polygon(40.0, 32, 0.0);
+    let cir_data = Primitives::reg_polygon(20.0, 16, 0.0);
     let cir = Shape::new(renderer, pipe2, cir_data, None);
 
     self.pipelines.push(pipe2);
