@@ -43,11 +43,11 @@ impl AppBase for App {
     let ax = sys.m_inputs.position.x - (sys.win_size.x / 2.0);
     let ay = sys.m_inputs.position.y - (sys.win_size.y / 2.0);
     // set rotation
-    let rx = if mx > 0.8 { (mx - 0.8) * 20.0 }
-    else if mx < 0.2 { (mx - 0.2) * 20.0 }
+    let rx = if mx > 0.8 { (mx - 0.8) * 30.0 }
+    else if mx < 0.2 { (mx - 0.2) * 30.0 }
     else { 0.0 };
-    let ry = if my > 0.8 { (my - 0.8) * 20.0 }
-    else if my < 0.2 { (my - 0.2) * 20.0 }
+    let ry = if my > 0.8 { (my - 0.8) * 30.0 }
+    else if my < 0.2 { (my - 0.2) * 30.0 }
     else { 0.0 };
 
     // update inner screen
@@ -63,7 +63,7 @@ impl AppBase for App {
     renderer.update_object(RObjectUpdate{
       object_id: self.shapes[1].id,
       translate: vec3f!(ax, ay, 0.0),
-      color: RColor::rgba_pct(mx, 1.0, my, 1.0),
+      color: RColor::rgba_pct(1.0 - mx, 1.0, 1.0 - my, 1.0),
       ..Default::default()
     });
     renderer.update_object(RObjectUpdate{
@@ -106,7 +106,7 @@ impl App {
       shader: RShader::FlatColor,
       ..Default::default()
     });
-    let cir_data = Primitives::reg_polygon(20.0, 16, 0.0);
+    let cir_data = Primitives::reg_polygon(10.0, 16, 0.0);
     let cir = Shape::new(renderer, pipe2, cir_data, None);
 
     self.pipelines.push(pipe2);

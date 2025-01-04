@@ -37,8 +37,8 @@ impl MouseState {
     Self {
       left: MKBState::None,
       right: MKBState::None,
-      instp: Vec2::new(0.0, 0.0),
-      position: Vec2::new(0.0, 0.0),
+      instp: Vec2::new(400.0, 300.0),
+      position: Vec2::new(400.0, 300.0),
       pos_delta: Vec2::new(0.0, 0.0),
     }
   }

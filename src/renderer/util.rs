@@ -195,7 +195,7 @@ impl RObjectSetup {
 // helper for updating render object
 #[derive(Debug, Clone)]
 pub enum RRotation {
-  AxisAngle([f32; 3], f32),
+  AxisAngle(Vec3, f32),
   Euler(f32, f32, f32)
 }
 
@@ -218,7 +218,7 @@ impl Default for RObjectUpdate<'_> {
     RObjectUpdate {
       object_id: RObjectId(0, 0),
       translate: vec3f!(0.0, 0.0, 0.0),
-      rotate: RRotation::AxisAngle([0.0, 0.0, 1.0], 0.0),
+      rotate: RRotation::AxisAngle(vec3f!(0.0, 0.0, 1.0), 0.0),
       scale: vec3f!(1.0, 1.0, 1.0),
       visible: true,
       camera: None,
@@ -235,7 +235,7 @@ impl<'a> RObjectUpdate<'a> {
     RObjectUpdate {
       object_id: shape.id,
       translate: shape.position,
-      rotate: RRotation::AxisAngle([0.0, 0.0, 1.0], 0.0),
+      rotate: RRotation::AxisAngle(vec3f!(0.0, 0.0, 1.0), 0.0),
       scale: shape.scale,
       visible: shape.visible,
       camera: None,

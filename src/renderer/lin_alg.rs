@@ -3,7 +3,7 @@
 use std::default;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
-use crate::vec4f;
+use crate::{vec3f, vec4f};
 
 pub const PI: f32 = 3.14159265;
 
@@ -129,32 +129,29 @@ impl Mat4 {
       -x, -y, -z, 1.0
     ]
   }
-  pub fn rotate(axis: &[f32; 3], deg: f32) -> [f32; 16] {
+  pub fn rotate(axis: &Vec3, deg: f32) -> [f32; 16] {
     // normalize axis
-    let n = f32::sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
-    let x = axis[0] / n;
-    let y = axis[1] / n;
-    let z = axis[2] / n;
+    let n = axis.normalize();
     // helpers
-    let xx = x * x;
-    let yy = y * y;
-    let zz = z * z;
+    let xx = n.x * n.x;
+    let yy = n.y * n.y;
+    let zz = n.z * n.z;
     let c = f32::cos(deg * PI / 180.0);
     let s = f32::sin(deg * PI / 180.0);
     let o = 1.0 - c;
     [
       xx + (1.0 - xx) * c,
-      x * y * o + z * s,
-      x * z * o - y * s,
+      n.x * n.y * o + n.z * s,
+      n.x * n.z * o - n.y * s,
       0.0,
 
-      x * y * o - z * s,
+      n.x * n.y * o - n.z * s,
       yy + (1.0 - yy) * c,
-      y * z * o + x * s,
+      n.y * n.z * o + n.x * s,
       0.0,
 
-      x * z * o + y * s,
-      y * z * o - x * s,
+      n.x * n.z * o + n.y * s,
+      n.y * n.z * o - n.x * s,
       zz + (1.0 - zz) * c,
       0.0,
 
@@ -385,6 +382,14 @@ impl Vec4 {
       self.z * self.z + self.w * self.w
     )
   }
+  pub fn quat_from_axis_angle(axis: Vec3, a_rad: f32) -> Self {
+    Self {
+      x: axis.x * f32::sin(a_rad / 2.0),
+      y: axis.y * f32::sin(a_rad / 2.0),
+      z: axis.z * f32::sin(a_rad / 2.0),
+      w: f32::cos(a_rad / 2.0),
+    }
+  }
 }
 impl Add for Vec4 {
   type Output = Vec4;
@@ -558,19 +563,20 @@ mod lin_alg_tests {
   }
   #[test]
   fn mat4_rotate1() {
-    let a = Mat4::rotate(&[0.0, 0.0, 1.0], 30.0);
+    let axis = vec3f!(0.0, 0.0, 1.0);
+    let a = Mat4::rotate(&axis, 30.0);
     let b = Mat4::rotate_euler(0.0, 0.0, 30.0);
     assert_eq!(a, b);
   }
   #[test]
   fn mat4_rotate2() {
-    let a = Mat4::rotate(&[0.0, 1.0, 0.0], 45.0);
+    let a = Mat4::rotate(&vec3f!(0.0, 1.0, 0.0), 45.0);
     let b = Mat4::rotate_euler(0.0, 45.0, 0.0);
     assert_eq!(a, b);
   }
   #[test]
   fn mat4_rotate3() {
-    let a = Mat4::rotate(&[1.0, 0.0, 0.0], 60.0);
+    let a = Mat4::rotate(&vec3f!(1.0, 0.0, 0.0), 60.0);
     let b = Mat4::rotate_euler(60.0, 0.0, 0.0);
     assert_eq!(a, b);
   }
@@ -609,7 +615,7 @@ mod lin_alg_tests {
   #[test]
   fn mvp_test() {
     // model
-    let model_r = Mat4::rotate(&[0.0, 1.0, 0.0], 0.0);
+    let model_r = Mat4::rotate(&vec3f!(0.0, 1.0, 0.0), 0.0);
     let model_t = Mat4::translate(0.0, 0.0, 400.0);
     let model = Mat4::multiply(&model_r, &model_t);
     // view
