@@ -94,7 +94,7 @@ pub struct RPipeline {
   objects: Vec<RObject>,
   max_obj_count: usize,
   vertex_type: u8,
-  max_joints_count: u32,
+  max_joints_count: usize,
   bind_group0: RBindGroup,
   bind_group1: Option<RBindGroup>,
   // bind_group2: Option<RBindGroup>,

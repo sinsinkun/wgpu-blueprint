@@ -635,7 +635,7 @@ impl<'a> Renderer<'a> {
     texture1: Option<RTextureId>,
     texture2: Option<RTextureId>,
     vertex_type: u8,
-    max_joints: u32,
+    max_joints: usize,
   ) -> RBindGroup {
     let min_stride = self.limits.min_uniform_buffer_offset_alignment;
     // create mvp buffer
@@ -723,7 +723,7 @@ impl<'a> Renderer<'a> {
     // create joints matrix buffer
     let joints_buffer = self.device.create_buffer(&BufferDescriptor {
       label: Some("joint-transforms-buffer"),
-      size: (max_joints * 4 * 4 * 4).into(), // 4x4 matrix of f32 values
+      size: (max_joints * 4 * 4 * 4) as u64, // 4x4 matrix of f32 values
       usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
       mapped_at_creation: false
     });
@@ -901,11 +901,11 @@ impl<'a> Renderer<'a> {
     if pipe.max_joints_count > 0 && update.anim_transforms.len() > 0 {
       let mut anim_buffer: Vec<f32> = Vec::new();
       for i in 0..pipe.max_joints_count {
-        if i >= update.anim_transforms.len() as u32 {
+        if i >= update.anim_transforms.len() {
           break;
         }
         // merge [f32; 16] arrays into single anim_buffer
-        let a = update.anim_transforms[i as usize];
+        let a = update.anim_transforms[i];
         anim_buffer.extend_from_slice(&a);
       }
       self.queue.write_buffer(&pipe.bind_group0.entries[1], 0, bytemuck::cast_slice(&anim_buffer));

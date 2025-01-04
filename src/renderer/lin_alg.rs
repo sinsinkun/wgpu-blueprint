@@ -61,7 +61,7 @@ impl Mat4 {
       self.a03, self.a13, self.a23, self.a33
     ]
   }
-  pub fn row(&self, n: u8) -> [f32; 4] {
+  pub fn row(&self, n: usize) -> [f32; 4] {
     if n > 3 {
       panic!("Rows are indexed 0 to 3")
     }
@@ -73,7 +73,7 @@ impl Mat4 {
       _ => [0.0, 0.0, 0.0, 0.0]
     }
   }
-  pub fn col(&self, n: u8) -> [f32; 4] {
+  pub fn col(&self, n: usize) -> [f32; 4] {
     if n > 3 {
       panic!("Cols are indexed 0 to 3")
     }
@@ -84,6 +84,13 @@ impl Mat4 {
       3 => [self.a03, self.a13, self.a23, self.a33],
       _ => [0.0, 0.0, 0.0, 0.0]
     }
+  }
+  pub fn cell(&self, row: usize, col: usize) -> f32 {
+    if row > 3 || col > 3 {
+      panic!("Row/Col cannot be greater than 3");
+    }
+    let r = self.row(row);
+    r[col]
   }
   // matrix transforms
   pub fn perspective(fov_y: f32, aspect_ratio: f32, near: f32, far: f32) -> [f32; 16] {
@@ -331,7 +338,7 @@ impl Mat4 {
     let mut out: [f32; 4] = [0.0; 4];
     for r in 0..4 {
       for (i, v) in mat.row(r).iter().enumerate() {
-        out[r as usize] += v * vec[i];
+        out[r] += v * vec[i];
       }
     }
     Vec4::from_array(out)

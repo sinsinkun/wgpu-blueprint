@@ -132,7 +132,7 @@ pub struct RPipelineSetup<'a> {
   pub fragment_fn: &'a str,
   pub uniforms: Vec<RUniformSetup>,
   pub vertex_type: u8,
-  pub max_joints_count: u32,
+  pub max_joints_count: usize,
 }
 impl Default for RPipelineSetup<'_> {
   fn default() -> Self {
