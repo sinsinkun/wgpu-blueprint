@@ -73,6 +73,35 @@ impl Mat4 {
       _ => [0.0, 0.0, 0.0, 0.0]
     }
   }
+  pub fn update_row(&mut self, row: usize, values: [f32; 4]) {
+    match row {
+      0 => {
+        self.a00 = values[0];
+        self.a01 = values[1];
+        self.a02 = values[2];
+        self.a03 = values[3];
+      }
+      1 => {
+        self.a10 = values[0];
+        self.a11 = values[1];
+        self.a12 = values[2];
+        self.a13 = values[3];
+      }
+      2 => {
+        self.a20 = values[0];
+        self.a21 = values[1];
+        self.a22 = values[2];
+        self.a23 = values[3];
+      }
+      3 => {
+        self.a30 = values[0];
+        self.a31 = values[1];
+        self.a32 = values[2];
+        self.a33 = values[3];
+      }
+      _ => ()
+    }
+  }
   pub fn col(&self, n: usize) -> [f32; 4] {
     if n > 3 {
       panic!("Cols are indexed 0 to 3")
@@ -85,12 +114,82 @@ impl Mat4 {
       _ => [0.0, 0.0, 0.0, 0.0]
     }
   }
+  pub fn update_col(&mut self, col: usize, values: [f32; 4]) {
+    match col {
+      0 => {
+        self.a00 = values[0];
+        self.a10 = values[1];
+        self.a20 = values[2];
+        self.a30 = values[3];
+      }
+      1 => {
+        self.a01 = values[0];
+        self.a11 = values[1];
+        self.a21 = values[2];
+        self.a31 = values[3];
+      }
+      2 => {
+        self.a02 = values[0];
+        self.a12 = values[1];
+        self.a22 = values[2];
+        self.a32 = values[3];
+      }
+      3 => {
+        self.a03 = values[0];
+        self.a13 = values[1];
+        self.a23 = values[2];
+        self.a33 = values[3];
+      }
+      _ => ()
+    }
+  }
   pub fn cell(&self, row: usize, col: usize) -> f32 {
     if row > 3 || col > 3 {
       panic!("Row/Col cannot be greater than 3");
     }
     let r = self.row(row);
     r[col]
+  }
+  pub fn update_cell(&mut self, row: usize, col: usize, value: f32) {
+    match row {
+      0 => {
+        match col {
+          0 => self.a00 = value,
+          1 => self.a01 = value,
+          2 => self.a02 = value,
+          3 => self.a03 = value,
+          _ => ()
+        }
+      }
+      1 => {
+        match col {
+          0 => self.a10 = value,
+          1 => self.a11 = value,
+          2 => self.a12 = value,
+          3 => self.a13 = value,
+          _ => ()
+        }
+      }
+      2 => {
+        match col {
+          0 => self.a20 = value,
+          1 => self.a21 = value,
+          2 => self.a22 = value,
+          3 => self.a23 = value,
+          _ => ()
+        }
+      }
+      3 => {
+        match col {
+          0 => self.a30 = value,
+          1 => self.a31 = value,
+          2 => self.a32 = value,
+          3 => self.a33 = value,
+          _ => ()
+        }
+      }
+      _ => ()
+    }
   }
   // matrix transforms
   pub fn perspective(fov_y: f32, aspect_ratio: f32, near: f32, far: f32) -> [f32; 16] {
