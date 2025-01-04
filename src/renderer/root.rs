@@ -931,12 +931,12 @@ impl<'a> Renderer<'a> {
       None => &self.default_cam
     };
     // model matrix
-    let model_t = Mat4::translate(update.translate[0], update.translate[1], update.translate[2]);
+    let model_t = Mat4::translate(update.translate.x, update.translate.y, update.translate.z);
     let model_r = match update.rotate {
       RRotation::AxisAngle(axis, angle) => { Mat4::rotate(&axis, angle) }
       RRotation::Euler(x, y, z) => { Mat4::rotate_euler(x, y, z) }
     };
-    let model_s = Mat4::scale(update.scale[0], update.scale[1], update.scale[2]);
+    let model_s = Mat4::scale(update.scale.x, update.scale.y, update.scale.z);
     let model = Mat4::multiply(&model_t, &Mat4::multiply(&model_s, &model_r));
     // view matrix
     let view_t = Mat4::translate(-cam.position.x, -cam.position.y, -cam.position.z);
@@ -965,7 +965,7 @@ impl<'a> Renderer<'a> {
     // note: max size is 64
     let mut buf: Vec<f32> = Vec::new();
     // albedo
-    buf.append(&mut Vec::from(update.color));
+    buf.append(&mut update.color.into());
     // rect size
     if let Some(rs) = update.rect_size {
       buf.append(&mut Vec::from(rs));

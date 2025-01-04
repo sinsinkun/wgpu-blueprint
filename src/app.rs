@@ -53,24 +53,23 @@ impl AppBase for App {
     // update inner screen
     renderer.update_object(RObjectUpdate{
       object_id: self.shapes[0].id,
-      translate: &[0.0, 0.0, -6.5],
+      translate: vec3f!(0.0, 0.0, -6.5),
       rotate: RRotation::Euler(ry, rx, 0.0),
       camera: Some(&self.camera_3d),
-      color: &[1.0 - my, 0.2, mx, 1.0],
       ..Default::default()
     });
 
     // update render objects for overlay
     renderer.update_object(RObjectUpdate{
       object_id: self.shapes[1].id,
-      translate: &[ax, ay, 0.0],
-      color: &[mx, 0.5, my, 1.0],
+      translate: vec3f!(ax, ay, 0.0),
+      color: RColor::rgba_pct(mx, 1.0, my, 1.0),
       ..Default::default()
     });
     renderer.update_object(RObjectUpdate{
       object_id: self.shapes[2].id,
-      translate: &[200.0, 100.0, -1.0],
-      color: &[0.2, my, mx, 1.0],
+      translate: vec3f!(200.0, 100.0, -1.0),
+      color: RColor::rgba_pct(0.2, my, mx, 1.0),
       rect_size: Some([200.0, 100.0]),
       rect_radius: 20.0,
       ..Default::default()

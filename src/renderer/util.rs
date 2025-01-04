@@ -1,4 +1,6 @@
-use std::{default, ops::{Add, AddAssign, Sub, SubAssign}};
+use std::default;
+use std::convert::Into;
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 use ab_glyph::Rect;
 
@@ -9,10 +11,10 @@ use crate::vec3f;
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct Shape {
   pub id: RObjectId,
-  pub position: [f32; 3],
-  pub rotate_axis: [f32; 3],
+  pub position: Vec3,
+  pub rotate_axis: Vec3,
   pub rotate_deg: f32,
-  pub scale: [f32; 3],
+  pub scale: Vec3,
   pub visible: bool,
   pub v_index: Option<Vec<f32>>,
   pub anim_transforms: Vec<[f32; 16]>,
@@ -30,10 +32,10 @@ impl Shape {
     let id = renderer.add_object(setup);
     Self {
       id,
-      position: [0.0, 0.0, 0.0],
-      rotate_axis: [0.0, 0.0, 1.0],
+      position: vec3f!(0.0, 0.0, 0.0),
+      rotate_axis: vec3f!(0.0, 0.0, 1.0),
       rotate_deg: 0.0,
-      scale: [1.0, 1.0, 1.0],
+      scale: vec3f!(1.0, 1.0, 1.0),
       visible: true,
       v_index: None,
       anim_transforms: Vec::new(),
@@ -52,10 +54,10 @@ impl Shape {
     let id = renderer.add_object(setup);
     Self {
       id,
-      position: [0.0, 0.0, 0.0],
-      rotate_axis: [0.0, 0.0, 1.0],
+      position: vec3f!(0.0, 0.0, 0.0),
+      rotate_axis: vec3f!(0.0, 0.0, 1.0),
       rotate_deg: 0.0,
-      scale: [1.0, 1.0, 1.0],
+      scale: vec3f!(1.0, 1.0, 1.0),
       visible: true,
       v_index: None,
       anim_transforms: Vec::new(),
@@ -200,12 +202,12 @@ pub enum RRotation {
 #[derive(Debug)]
 pub struct RObjectUpdate<'a> {
   pub object_id: RObjectId,
-  pub translate: &'a [f32; 3],
+  pub translate: Vec3,
   pub rotate: RRotation,
-  pub scale: &'a [f32; 3],
+  pub scale: Vec3,
   pub visible: bool,
   pub camera: Option<&'a RCamera>,
-  pub color: &'a [f32; 4],
+  pub color: RColor,
   pub uniforms: Vec<&'a [u8]>,
   pub anim_transforms: Vec<[f32; 16]>,
   pub rect_size: Option<[f32; 2]>,
@@ -215,12 +217,12 @@ impl Default for RObjectUpdate<'_> {
   fn default() -> Self {
     RObjectUpdate {
       object_id: RObjectId(0, 0),
-      translate: &[0.0, 0.0, 0.0],
+      translate: vec3f!(0.0, 0.0, 0.0),
       rotate: RRotation::AxisAngle([0.0, 0.0, 1.0], 0.0),
-      scale: &[1.0, 1.0, 1.0],
+      scale: vec3f!(1.0, 1.0, 1.0),
       visible: true,
       camera: None,
-      color: &[1.0, 1.0, 1.0, 1.0],
+      color: RColor::WHITE,
       uniforms: Vec::new(),
       anim_transforms: Vec::new(),
       rect_size: None,
@@ -232,12 +234,12 @@ impl<'a> RObjectUpdate<'a> {
   pub fn from_shape(shape: &'a Shape) -> Self {
     RObjectUpdate {
       object_id: shape.id,
-      translate: &shape.position,
+      translate: shape.position,
       rotate: RRotation::AxisAngle([0.0, 0.0, 1.0], 0.0),
-      scale: &shape.scale,
+      scale: shape.scale,
       visible: shape.visible,
       camera: None,
-      color: &[1.0, 1.0, 1.0, 1.0],
+      color: RColor::WHITE,
       uniforms: Vec::new(),
       anim_transforms: Vec::new(),
       rect_size: None,
@@ -256,4 +258,99 @@ impl<'a> RObjectUpdate<'a> {
     self.anim_transforms = transforms;
     self
   }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct RColor {
+  pub r: f32,
+  pub g: f32,
+  pub b: f32,
+  pub a: f32,
+}
+impl Into<Vec<f32>> for RColor {
+  fn into(self) -> Vec<f32> {
+    vec![self.r, self.g, self.b, self.a]
+  }
+}
+impl Into<[f32; 4]> for RColor {
+  fn into(self) -> [f32; 4] {
+    [self.r, self.g, self.b, self.a]
+  }
+}
+impl RColor {
+  pub fn rgba_pct(r: f32, g: f32, b: f32, a: f32) -> Self {
+    Self { r, g, b, a }
+  }
+  pub fn rgb(r: u8, g: u8, b: u8) -> Self {
+    Self {
+      r: r as f32 / 255.0,
+      g: g as f32 / 255.0,
+      b: b as f32 / 255.0,
+      a: 1.0 
+    }
+  }
+  pub fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
+    Self {
+      r: r as f32 / 255.0,
+      g: g as f32 / 255.0,
+      b: b as f32 / 255.0,
+      a: a as f32 / 255.0,
+    }
+  }
+  pub fn hsv(h: f32, s: f32, v: f32) -> Self {
+    let i = f32::floor(h * 6.0);
+    let f = h * 6.0 - i;
+    let p = v * (1.0 - s);
+    let q = v * (1.0 - f * s);
+    let t = v * (1.0 - (1.0 - f) * s);
+
+    let mut clr = RColor::WHITE;
+    match i % 6.0 {
+      0.0 => { clr.r = v; clr.g = t; clr.b = p; }
+      1.0 => { clr.r = q; clr.g = v; clr.b = p; }
+      2.0 => { clr.r = p; clr.g = v; clr.b = t; }
+      3.0 => { clr.r = p; clr.g = q; clr.b = v; }
+      4.0 => { clr.r = t; clr.g = p; clr.b = v; }
+      5.0 => { clr.r = v; clr.g = p; clr.b = q; }
+      _ => ()
+    }
+    clr
+  }
+  // pre-defined colors
+  pub const TRANSPARENT: Self = Self {
+    r: 0.0, g: 0.0, b: 0.0, a: 0.0,
+  };
+  pub const BLACK: Self = Self {
+    r: 0.0, g: 0.0, b: 0.0, a: 1.0,
+  };
+  pub const GRAY: Self = Self {
+    r: 0.5, g: 0.5, b: 0.5, a: 1.0,
+  };
+  pub const WHITE: Self = Self {
+    r: 1.0, g: 1.0, b: 1.0, a: 1.0,
+  };
+  pub const RED: Self = Self {
+    r: 1.0, g: 0.0, b: 0.0, a: 1.0,
+  };
+  pub const GREEN: Self = Self {
+    r: 0.0, g: 1.0, b: 0.0, a: 1.0,
+  };
+  pub const BLUE: Self = Self {
+    r: 0.0, g: 0.0, b: 1.0, a: 1.0,
+  };
+  pub const YELLOW: Self = Self {
+    r: 1.0, g: 1.0, b: 0.0, a: 1.0,
+  };
+  pub const CYAN: Self = Self {
+    r: 0.0, g: 1.0, b: 1.0, a: 1.0,
+  };
+  pub const MAGENTA: Self = Self {
+    r: 1.0, g: 0.0, b: 1.0, a: 1.0,
+  };
+  pub const ORANGE: Self = Self {
+    r: 1.0, g: 0.5, b: 0.0, a: 1.0,
+  };
+  pub const PURPLE: Self = Self {
+    r: 0.5, g: 0.0, b: 1.0, a: 1.0,
+  };
 }
