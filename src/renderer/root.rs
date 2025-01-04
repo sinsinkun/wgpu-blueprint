@@ -948,7 +948,7 @@ impl<'a> Renderer<'a> {
     let proj = match cam.cam_type {
       1 => Mat4::ortho(-w2, w2, -h2, h2, cam.near, cam.far),
       2 => Mat4::perspective(cam.fov_y, w2/h2, cam.near, cam.far),
-      _ => Mat4::identity().as_array()
+      _ => Mat4::identity().as_col_major_array()
     };
     // merge together
     let mut mvp: [f32; 48] = [0.0; 48]; // 16 * 3 = 48

@@ -3,6 +3,8 @@
 use std::default;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
+use crate::vec4f;
+
 pub const PI: f32 = 3.14159265;
 
 /**
@@ -10,6 +12,7 @@ pub const PI: f32 = 3.14159265;
  * If you need to use them to perform regular matrix transformations,
  * please transpose the result.
  */
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub struct Mat4 {
   a00: f32, a01: f32, a02: f32, a03: f32,
   a10: f32, a11: f32, a12: f32, a13: f32,
@@ -17,6 +20,7 @@ pub struct Mat4 {
   a30: f32, a31: f32, a32: f32, a33: f32,
 }
 impl Mat4 {
+  // util fns
   pub fn from_row_major(arr: [f32; 16]) -> Self {
     Self {
       a00: arr[0], a01: arr[1], a02: arr[2], a03: arr[3],
@@ -41,7 +45,15 @@ impl Mat4 {
       a30: 0.0, a31: 0.0, a32: 0.0, a33: 1.0,
     }
   }
-  pub fn as_array(&self) -> [f32; 16] {
+  pub fn as_row_major_array(&self) -> [f32; 16] {
+    [
+      self.a00, self.a01, self.a02, self.a03,
+      self.a10, self.a11, self.a12, self.a13,
+      self.a20, self.a21, self.a22, self.a23,
+      self.a30, self.a31, self.a32, self.a33
+    ]
+  }
+  pub fn as_col_major_array(&self) -> [f32; 16] {
     [
       self.a00, self.a10, self.a20, self.a30,
       self.a01, self.a11, self.a21, self.a31,
@@ -50,6 +62,9 @@ impl Mat4 {
     ]
   }
   pub fn row(&self, n: u8) -> [f32; 4] {
+    if n > 3 {
+      panic!("Rows are indexed 0 to 3")
+    }
     match n {
       0 => [self.a00, self.a01, self.a02, self.a03],
       1 => [self.a10, self.a11, self.a12, self.a13],
@@ -58,7 +73,10 @@ impl Mat4 {
       _ => [0.0, 0.0, 0.0, 0.0]
     }
   }
-  pub fn col(&self, n:u8) -> [f32; 4] {
+  pub fn col(&self, n: u8) -> [f32; 4] {
+    if n > 3 {
+      panic!("Cols are indexed 0 to 3")
+    }
     match n {
       0 => [self.a00, self.a10, self.a20, self.a30],
       1 => [self.a01, self.a11, self.a21, self.a31],
@@ -67,6 +85,7 @@ impl Mat4 {
       _ => [0.0, 0.0, 0.0, 0.0]
     }
   }
+  // matrix transforms
   pub fn perspective(fov_y: f32, aspect_ratio: f32, near: f32, far: f32) -> [f32; 16] {
     let f = f32::tan(PI * 0.5 - 0.5 * fov_y * PI / 180.0);
     let range = 1.0 / (near - far);
@@ -288,7 +307,7 @@ impl Mat4 {
     if det == 0.0 {
       println!("ERR: cannot inverse matrix with determinant of 0 - returning identity");
       let idm = Mat4::identity();
-      return idm.as_array();
+      return idm.as_col_major_array();
     }
 
     let adj = Self::adjugate_4x4(src);
@@ -310,14 +329,31 @@ impl Mat4 {
       0.0, 0.0, 0.0, 1.0
     ]
   }
-  pub fn multiply_vec4(mat: &[f32; 16], vec: &[f32; 4]) -> [f32; 4] {
-    let mut out = [0.0; 4];
-    for i in 0..4 {
-      for j in 0..4 {
-        out[i] += mat[j * 4 + i] * vec[j];
+  pub fn multiply_vec4(mat: &Mat4, vec4: &Vec4) -> Vec4 {
+    let vec = vec4.as_array();
+    let mut out: [f32; 4] = [0.0; 4];
+    for r in 0..4 {
+      for (i, v) in mat.row(r).iter().enumerate() {
+        out[r as usize] += v * vec[i];
       }
     }
-    out
+    Vec4::from_array(out)
+  }
+  pub fn to_string(&self) -> String {
+    let mut str = "Mat4: { ".to_owned();
+    for r in 0..4 {
+      str += "[";
+      for v in self.row(r) {
+        str = str + &v.to_string() + ", ";
+      }
+      str.pop();
+      str.pop();
+      str += "], "
+    }
+    str.pop();
+    str.pop();
+    str += " }";
+    str
   }
 }
 
@@ -587,10 +623,11 @@ mod lin_alg_tests {
     // mvp
     let mvp_temp = Mat4::multiply(&model, &view);
     let mvp = Mat4::multiply(&proj, &mvp_temp);
-    let p: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
-    let clip_p = Mat4::multiply_vec4(&mvp, &p);
+    let mvp_mat = Mat4::from_col_major(mvp);
+    let p = vec4f!(0.0, 0.0, 0.0, 1.0);
+    let clip_p = Mat4::multiply_vec4(&mvp_mat, &p);
 
-    println!("mvp: {mvp:?} x p: {p:?} = clip_p: {clip_p:.4?}\n");
+    println!("mvp: {} x p: {p:?} = clip_p: {clip_p:.4?}\n", mvp_mat.to_string());
     assert!(true); // use cargo test mvp_test -- --nocapture
   }
 }
