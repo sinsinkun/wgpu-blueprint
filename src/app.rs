@@ -8,7 +8,7 @@ use crate::*;
 pub struct App {
   pipelines: Vec<RPipelineId>,
   textures: Vec<RTextureId>,
-  shapes: Vec<Shape>,
+  objects: Vec<RObjectId>,
   camera_3d: RCamera,
   camera_overlay: RCamera,
   time_since_last_fps: Duration,
@@ -18,7 +18,7 @@ impl Default for App {
     Self {
       pipelines: Vec::new(),
       textures: Vec::new(),
-      shapes:  Vec::new(),
+      objects:  Vec::new(),
       camera_3d: RCamera::default(),
       camera_overlay: RCamera::default(),
       time_since_last_fps: Duration::from_secs(1),
@@ -62,35 +62,25 @@ impl AppBase for App {
     else if my < 0.2 { (my - 0.2) * 30.0 }
     else { 0.0 };
 
-    // update inner screen
-    renderer.update_object(RObjectUpdate{
-      object_id: self.shapes[0].id,
-      translate: vec3f!(0.0, 0.0, -6.5),
-      rotate: RRotation::Euler(ry, rx, 0.0),
-      camera: Some(&self.camera_3d),
-      ..Default::default()
-    });
-
-    // update render objects for overlay
-    renderer.update_object(RObjectUpdate{
-      object_id: self.shapes[1].id,
-      translate: vec3f!(ax, ay, 0.0),
-      camera: Some(&self.camera_overlay),
-      color: RColor::rgba_pct(1.0 - mx, 1.0, 1.0 - my, 1.0),
-      ..Default::default()
-    });
-    renderer.update_object(RObjectUpdate{
-      object_id: self.shapes[2].id,
-      translate: vec3f!(200.0, 100.0, -1.0),
-      camera: Some(&self.camera_overlay),
-      color: RColor::rgba_pct(0.2, my, mx, 1.0),
-      rect_size: Some([200.0, 100.0]),
-      rect_radius: 20.0,
-      ..Default::default()
-    });
+    // update circle
+    renderer.update_object(RObjectUpdate::obj(self.objects[1])
+      .with_position(vec3f!(ax, ay, 0.0))
+      .with_camera(&self.camera_overlay)
+      .with_color(RColor::rgba_pct(1.0 - mx, 1.0, 1.0 - my, 1.0)));
+    // update rect
+    renderer.update_object(RObjectUpdate::obj(self.objects[2])
+      .with_position(vec3f!(200.0, 100.0, -1.0))
+      .with_camera(&self.camera_overlay)
+      .with_color(RColor::rgba_pct(0.2, my, mx, 1.0))
+      .with_round_border(vec2f!(200.0, 100.0), 20.0));
     renderer.render_on_texture(&self.pipelines[1..3], self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
 
-    // render fps text to overlay
+    // update inner screen
+    renderer.update_object(RObjectUpdate::obj(self.objects[0])
+      .with_position(vec3f!(0.0, 0.0, -6.5))
+      .with_euler_rotation(ry, rx, 0.0)
+      .with_camera(&self.camera_3d));
+    // render fps text to inner screen
     if self.time_since_last_fps > Duration::from_millis(800) {
       self.time_since_last_fps = Duration::from_nanos(0);
       let fps_txt = format!("FPS: {:.2}", 1.0 / sys.frame_delta.as_secs_f32());
@@ -100,6 +90,8 @@ impl AppBase for App {
     } else {
       self.time_since_last_fps += *sys.frame_delta;
     }
+
+    // output pipelines to render to screen
     vec!(self.pipelines[0])
   }
 }
@@ -115,12 +107,17 @@ impl App {
       ..Default::default()
     });
     let rect_data = Primitives::rect_indexed(20.0, 15.0, 0.0);
-    let rect = Shape::new(renderer, pipe, rect_data.0, Some(rect_data.1));
+    let rect = renderer.add_object(RObjectSetup {
+      pipeline_id: pipe,
+      vertex_data: rect_data.0,
+      indices: rect_data.1,
+      ..Default::default()
+    });
 
     self.pipelines.push(pipe);
     self.textures.push(tx);
     self.textures.push(txt_tx);
-    self.shapes.push(rect);
+    self.objects.push(rect);
   }
   fn init_circle(&mut self, renderer: &mut Renderer) {
     let pipe2 = renderer.add_pipeline(RPipelineSetup{
@@ -128,10 +125,14 @@ impl App {
       ..Default::default()
     });
     let cir_data = Primitives::reg_polygon(10.0, 16, 0.0);
-    let cir = Shape::new(renderer, pipe2, cir_data, None);
+    let cir = renderer.add_object(RObjectSetup {
+      pipeline_id: pipe2,
+      vertex_data: cir_data,
+      ..Default::default()
+    });
 
     self.pipelines.push(pipe2);
-    self.shapes.push(cir);
+    self.objects.push(cir);
   }
   fn init_rounded_rect(&mut self, renderer: &mut Renderer) {
     let pipe3 = renderer.add_pipeline(RPipelineSetup {
@@ -139,9 +140,14 @@ impl App {
       ..Default::default()
     });
     let rect_data = Primitives::rect_indexed(200.0, 100.0, 0.0);
-    let rect = Shape::new(renderer, pipe3, rect_data.0, Some(rect_data.1));
+    let rect = renderer.add_object(RObjectSetup {
+      pipeline_id: pipe3,
+      vertex_data: rect_data.0,
+      indices: rect_data.1,
+      ..Default::default()
+    });
 
     self.pipelines.push(pipe3);
-    self.shapes.push(rect);
+    self.objects.push(rect);
   }
 }

@@ -224,11 +224,9 @@ pub struct RObjectUpdate<'a> {
   pub scale: Vec3,
   pub visible: bool,
   pub camera: Option<&'a RCamera>,
-  pub color: RColor,
+  pub gen_buf: [f32; 64],
   pub uniforms: Vec<&'a [u8]>,
   pub anim_transforms: Vec<[f32; 16]>,
-  pub rect_size: Option<[f32; 2]>,
-  pub rect_radius: f32,
 }
 impl Default for RObjectUpdate<'_> {
   fn default() -> Self {
@@ -239,32 +237,57 @@ impl Default for RObjectUpdate<'_> {
       scale: vec3f!(1.0, 1.0, 1.0),
       visible: true,
       camera: None,
-      color: RColor::WHITE,
       uniforms: Vec::new(),
       anim_transforms: Vec::new(),
-      rect_size: None,
-      rect_radius: 0.0,
+      gen_buf: [0.0; 64],
     }
   }
 }
 impl<'a> RObjectUpdate<'a> {
-  pub fn from_shape(shape: &'a Shape) -> Self {
-    RObjectUpdate {
-      object_id: shape.id,
-      translate: shape.position,
+  pub fn obj(obj_id: RObjectId) -> Self {
+    Self {
+      object_id: obj_id,
+      translate: vec3f!(0.0, 0.0, 0.0),
       rotate: RRotation::AxisAngle(vec3f!(0.0, 0.0, 1.0), 0.0),
-      scale: shape.scale,
-      visible: shape.visible,
+      scale: vec3f!(1.0, 1.0, 1.0),
+      visible: true,
       camera: None,
-      color: RColor::WHITE,
       uniforms: Vec::new(),
       anim_transforms: Vec::new(),
-      rect_size: None,
-      rect_radius: 0.0,
+      gen_buf: [0.0; 64],
     }
+  }
+  pub fn with_position(mut self, pos: Vec3) -> Self {
+    self.translate = pos;
+    self
+  }
+  pub fn with_rotation(mut self, axis: Vec3, angle_deg: f32) -> Self {
+    self.rotate = RRotation::AxisAngle(axis, angle_deg);
+    self
+  }
+  pub fn with_euler_rotation(mut self, roll: f32, pitch: f32, yaw: f32) -> Self {
+    self.rotate = RRotation::Euler(roll, pitch, yaw);
+    self
+  }
+  pub fn with_scale(mut self, scale: Vec3) -> Self {
+    self.scale = scale;
+    self
   }
   pub fn with_camera(mut self, camera: &'a RCamera) -> Self {
     self.camera = Some(camera);
+    self
+  }
+  pub fn with_color(mut self, color: RColor) -> Self {
+    self.gen_buf[0] = color.r;
+    self.gen_buf[1] = color.g;
+    self.gen_buf[2] = color.b;
+    self.gen_buf[3] = color.a;
+    self
+  }
+  pub fn with_round_border(mut self, rect_size: Vec2, radius: f32) -> Self {
+    self.gen_buf[4] = rect_size.x;
+    self.gen_buf[5] = rect_size.y;
+    self.gen_buf[6] = radius;
     self
   }
   pub fn with_uniforms(mut self, uniforms: Vec<&'a [u8]>) -> Self {

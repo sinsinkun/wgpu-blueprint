@@ -796,7 +796,7 @@ impl<'a> Renderer<'a> {
     }
   }
   /// shorthand for creating a texture of the same size as the window
-  /// - also creates a default pipeline for overlaying text
+  /// - creates a default pipeline for overlaying text
   pub fn add_overlay_pipeline(&mut self) -> (RTextureId, RPipelineId) {
     // build full screen texture
     let texture_id = self.add_texture(self.config.width, self.config.height, None, true);
@@ -808,7 +808,12 @@ impl<'a> Renderer<'a> {
     });
     // build object
     let (rect_data, rect_i) = Primitives::rect_indexed(2.0, 2.0, 0.0);
-    let _rect = Shape::new(self, pipeline_id, rect_data, Some(rect_i));
+    let _rect = self.add_object(RObjectSetup {
+      pipeline_id,
+      vertex_data: rect_data,
+      indices: rect_i,
+      ..Default::default()
+    });
     // output fields
     (texture_id, pipeline_id)
   }
@@ -880,7 +885,7 @@ impl<'a> Renderer<'a> {
   /// update existing render object attached to a pipeline
   pub fn update_object(&mut self, update: RObjectUpdate) {
     let mvp = self.create_mvp(&update);
-    let buf = self.create_buf(&update);
+    let buf = update.gen_buf;
     let pipe = &mut self.pipelines[update.object_id.0];
     let obj = &mut pipe.objects[update.object_id.1];
     obj.visible = update.visible;
@@ -968,20 +973,6 @@ impl<'a> Renderer<'a> {
       else { mvp[i] = proj[i - 32]; }
     }
     mvp
-  }
-  /// part of update_object process
-  /// - creates general uniform buffer
-  fn create_buf(&self, update: &RObjectUpdate) -> Vec<f32> {
-    // note: max size is 64
-    let mut buf: Vec<f32> = Vec::new();
-    // albedo
-    buf.append(&mut update.color.into());
-    // rect size
-    if let Some(rs) = update.rect_size {
-      buf.append(&mut Vec::from(rs));
-      buf.push(update.rect_radius);
-    }
-    buf
   }
   /// separate out pipeline implementation to resolve ownership issues
   /// - shared by render_on_texture and render_to_screen
