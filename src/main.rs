@@ -18,7 +18,7 @@ use renderer::{RPipelineId, Renderer, Vec2};
 mod app;
 use app::App;
 
-const RENDER_FPS_LOCK: Duration = Duration::from_millis(10);
+const RENDER_FPS_LOCK: Duration = Duration::from_millis(1);
 const DEFAULT_SIZE: (u32, u32) = (800, 600);
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -99,6 +99,7 @@ struct WinitApp<'a, T> {
 	is_render_frame: bool,
 	renderer: Option<Renderer<'a>>,
 	resize_state: u8,
+	hide_cursor: bool,
 	// input handling
 	input_cache: HashMap<KeyCode, MKBState>,
   mouse_cache: MouseState,
@@ -183,6 +184,18 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 							event_loop.exit();
 						}
 					}
+					PhysicalKey::Code(KeyCode::F1) => {
+						if state.is_pressed() && !repeat {
+							self.hide_cursor = !self.hide_cursor;
+							if let Some(win) = &self.window {
+								if self.hide_cursor {
+									win.set_cursor_visible(false);
+								} else {
+									win.set_cursor_visible(true);
+								}
+							}
+						}
+					}
 					_ => ()
 				}
 			}
@@ -214,8 +227,10 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				}
 			}
 			WindowEvent::CursorEntered { .. } => {
-				if let Some(win) = &self.window {
-					win.set_cursor_visible(false);
+				if self.hide_cursor {
+					if let Some(win) = &self.window {
+						win.set_cursor_visible(false);
+					}
 				}
 			}
 			WindowEvent::Ime(ime) => {
@@ -313,6 +328,7 @@ impl<T: AppBase> WinitApp<'_, T> {
 			input_cache: HashMap::new(),
       mouse_cache: MouseState::new(),
 			app: ext_app,
+			hide_cursor: false,
 		}
   }
 	fn cleanup(&mut self) {

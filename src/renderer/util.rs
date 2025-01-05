@@ -75,6 +75,21 @@ pub struct RCamera {
   pub fov_y: f32,
   pub near: f32,
   pub far: f32,
+  pub target_size: Option<Vec2>,
+}
+impl Default for RCamera {
+  fn default() -> Self {
+    Self {
+      cam_type: RCamera::ORTHOGRAPHIC,
+      position: vec3f!(0.0, 0.0, 100.0),
+      look_at: vec3f!(0.0, 0.0, 0.0),
+      up: vec3f!(0.0, 1.0, 0.0),
+      fov_y: 0.0,
+      near: 0.0,
+      far: 1000.0,
+      target_size: None,
+    }
+  }
 }
 impl RCamera {
   pub const ORTHOGRAPHIC: u8 = 1;
@@ -88,6 +103,7 @@ impl RCamera {
       fov_y: 0.0,
       near,
       far,
+      target_size: None,
     }
   }
   pub fn new_persp(fov_y: f32, near: f32, far: f32) -> Self {
@@ -99,6 +115,7 @@ impl RCamera {
       fov_y,
       near,
       far,
+      target_size: None,
     }
   }
 }

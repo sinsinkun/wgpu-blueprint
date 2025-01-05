@@ -8,6 +8,7 @@ pub struct App {
   textures: Vec<RTextureId>,
   shapes: Vec<Shape>,
   camera_3d: RCamera,
+  camera_overlay: RCamera,
 }
 impl Default for App {
   fn default() -> Self {
@@ -15,16 +16,24 @@ impl Default for App {
       pipelines: Vec::new(),
       textures: Vec::new(),
       shapes:  Vec::new(),
-      camera_3d: RCamera::new_ortho(0.0, 1000.0),
+      camera_3d: RCamera::default(),
+      camera_overlay: RCamera::default(),
     }
   }
 }
 impl AppBase for App {
-  fn init(&mut self, _sys: SystemInfo, renderer: &mut Renderer) {
+  fn init(&mut self, sys: SystemInfo, renderer: &mut Renderer) {
     self.camera_3d = RCamera::new_persp(90.0, 0.1, 1000.0);
+    self.camera_overlay = RCamera::new_ortho(0.0, 1000.0);
+    self.camera_overlay.target_size = Some(sys.win_size);
     self.init_overlay(renderer);
     self.init_circle(renderer);
     self.init_rounded_rect(renderer);
+  }
+  fn resize(&mut self, _renderer: &mut Renderer, _width: u32, height: u32) {
+    let h = height as f32;
+    let w = h * 4.0 / 3.0;
+    self.camera_overlay.target_size = Some(vec2f!(w, h));
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // process inputs
@@ -63,12 +72,14 @@ impl AppBase for App {
     renderer.update_object(RObjectUpdate{
       object_id: self.shapes[1].id,
       translate: vec3f!(ax, ay, 0.0),
+      camera: Some(&self.camera_overlay),
       color: RColor::rgba_pct(1.0 - mx, 1.0, 1.0 - my, 1.0),
       ..Default::default()
     });
     renderer.update_object(RObjectUpdate{
       object_id: self.shapes[2].id,
       translate: vec3f!(200.0, 100.0, -1.0),
+      camera: Some(&self.camera_overlay),
       color: RColor::rgba_pct(0.2, my, mx, 1.0),
       rect_size: Some([200.0, 100.0]),
       rect_radius: 20.0,
@@ -78,16 +89,16 @@ impl AppBase for App {
 
     // render fps text to overlay
     renderer.render_str_on_blank_texture(
-      self.textures[1], &fps_txt, 80.0, [0x34, 0xff, 0x34, 0xff], [10.0, 60.0], 5.0
+      self.textures[1], &fps_txt, 30.0, [0x34, 0xff, 0x34, 0xff], [10.0, 20.0], 2.0
     );
-    vec!(self.pipelines[0], self.pipelines[1])
+    vec!(self.pipelines[0])
   }
 }
 impl App {
   fn init_overlay(&mut self, renderer: &mut Renderer) {
     renderer.load_font("./src/embed_assets/NotoSansCB.ttf");
-    let tx = renderer.add_texture(2000, 1500, None, true);
-    let txt_tx = renderer.add_texture(2000, 1500, None, true);
+    let tx = renderer.add_texture(1000, 750, None, true);
+    let txt_tx = renderer.add_texture(1000, 750, None, true);
     let pipe = renderer.add_pipeline(RPipelineSetup{
       shader: RShader::Custom(include_str!("../assets/base_radial_shadow.wgsl")),
       texture1_id: Some(tx),

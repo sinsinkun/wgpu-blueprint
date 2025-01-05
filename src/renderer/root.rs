@@ -943,8 +943,18 @@ impl<'a> Renderer<'a> {
     let view_r = Mat4::view_rot(&cam.position, &cam.look_at, &cam.up);
     let view = Mat4::multiply(&view_r, &view_t);
     // projection matrix
-    let w2 = (self.config.width / 2) as f32;
-    let h2 = (self.config.height / 2) as f32;
+    let (w2, h2) = match cam.target_size {
+      Some(s) => {
+        let w = s.x / 2.0;
+        let h = s.y / 2.0;
+        (w, h)
+      }
+      None => {
+        let w = (self.config.width / 2) as f32;
+        let h = (self.config.height / 2) as f32;
+        (w, h)
+      }
+    };
     let proj = match cam.cam_type {
       1 => Mat4::ortho(-w2, w2, -h2, h2, cam.near, cam.far),
       2 => Mat4::perspective(cam.fov_y, w2/h2, cam.near, cam.far),
