@@ -674,6 +674,11 @@ impl SubAssign for Vec2 {
     self.y -= rhs.y;
   }
 }
+impl Into<[f32; 2]> for Vec2 {
+  fn into(self) -> [f32; 2] {
+    [self.x, self.y]
+  }
+}
 
 #[cfg(test)]
 mod lin_alg_tests {

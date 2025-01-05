@@ -4,7 +4,7 @@ use ab_glyph::{Font, FontRef, Glyph, Rect};
 use image::{Rgba, Rgba32FImage, RgbaImage};
 use wgpu::{Extent3d, ImageCopyTexture, ImageDataLayout, Origin3d, Queue, Texture, TextureAspect, TextureFormat};
 
-use super::RColor;
+use super::{RColor, Vec2};
 
 #[derive(Debug, PartialEq)]
 pub enum TextError {
@@ -135,19 +135,18 @@ pub fn draw_str_on_texture(
   string: &str,
   size: f32,
   color: RColor,
-  base_point: [f32; 2],
+  base_point: Vec2,
   spacing: f32,
 ) -> Result<(), TextError> {
   // define font
   let font = FontRef::try_from_slice(font_data).map_err(|_| TextError::FileLoadError)?;
-  let space_dx = size / 3.0;
   // define image buffer
   let mut img = RgbaImage::new(texture.width(), texture.height());
 
-  let mut c_pos: [f32; 2] = base_point;
+  let mut c_pos: [f32; 2] = base_point.into();
   for c in string.chars() {
     let glyph = font.glyph_id(c).with_scale(size);
-    if let Some(ch) = font.outline_glyph(glyph) {
+    if let Some(ch) = font.outline_glyph(glyph.clone()) {
       let bounds = ch.px_bounds();
       let mut x_offset = 0.0;
       let y_offset = bounds.min.y;
@@ -164,15 +163,15 @@ pub fn draw_str_on_texture(
         let g = c * color.g * 255.0;
         let b = c * color.b * 255.0;
         let a = if c > color.a { color.a * 255.0 } else { c * 255.0 };
-        if a < 10.0 { return; }
         let clr = [r as u8, g as u8, b as u8, a as u8];
         img.put_pixel(absx as u32, absy as u32, Rgba(clr));
       });
       // update position to draw glyph
       c_pos[0] += x_offset + spacing;
     } else {
+      let w = font.glyph_bounds(&glyph).width();
       // handling blank space
-      c_pos[0] += space_dx + spacing;
+      c_pos[0] += w + spacing;
     }
   }
 

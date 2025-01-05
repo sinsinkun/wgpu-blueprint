@@ -1065,7 +1065,7 @@ impl<'a> Renderer<'a> {
     input: &str,
     size:f32,
     color: RColor,
-    base_point: [f32; 2],
+    base_point: Vec2,
     spacing: f32
   ) {
     let texture = &mut self.textures[texture_id.0];

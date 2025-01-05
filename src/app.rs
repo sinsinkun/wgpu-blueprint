@@ -95,7 +95,7 @@ impl AppBase for App {
       self.time_since_last_fps = Duration::from_nanos(0);
       let fps_txt = format!("FPS: {:.2}", 1.0 / sys.frame_delta.as_secs_f32());
       renderer.redraw_texture_with_str(
-        self.textures[1], &fps_txt, 40.0, RColor::rgba(0x34, 0xff, 0x00, 0x22), [10.0, 30.0], 2.0
+        self.textures[1], &fps_txt, 40.0, RColor::rgba(0x34, 0xff, 0x00, 0x22), vec2f!(10.0, 30.0), 2.0
       );
     } else {
       self.time_since_last_fps += *sys.frame_delta;
