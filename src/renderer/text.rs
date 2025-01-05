@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use ab_glyph::{Font, FontRef, Glyph, Rect};
-use image::{Rgba, Rgba32FImage, RgbaImage};
+use image::{Rgba, RgbaImage};
 use wgpu::{Extent3d, ImageCopyTexture, ImageDataLayout, Origin3d, Queue, Texture, TextureAspect, TextureFormat};
 
 use super::{RColor, Vec2};
@@ -12,18 +12,6 @@ pub enum TextError {
   FileLoadError,
   GlyphOutlineError,
   ExceedsBounds,
-}
-
-#[derive(Debug)]
-pub struct RStringInputs<'a> {
-  pub queue: &'a Queue,
-  pub texture: &'a mut Texture,
-  pub font_data: &'a Vec<u8>,
-  pub string: &'a str,
-  pub size: f32,
-  pub color: [u8; 4],
-  pub base_point: [u32; 2],
-  pub spacing: u32,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
