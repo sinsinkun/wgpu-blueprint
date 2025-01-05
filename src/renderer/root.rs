@@ -1056,10 +1056,10 @@ impl<'a> Renderer<'a> {
     self.render_impl(&mut encoder, target, view, zbuffer_view, pipeline_ids, clear_color);
     self.queue.submit(std::iter::once(encoder.finish()));
   }
-  /// overlays text string on target texture
+  /// overwrite target texture with string image
   /// - non-text will be overwritten with transparent pixels
   /// - to overlay on a different texture, it must be fed into texture 2
-  pub fn render_str_on_blank_texture(
+  pub fn redraw_texture_with_str(
     &mut self,
     texture_id: RTextureId,
     input: &str,
