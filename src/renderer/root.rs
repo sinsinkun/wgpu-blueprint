@@ -1064,7 +1064,7 @@ impl<'a> Renderer<'a> {
     texture_id: RTextureId,
     input: &str,
     size:f32,
-    color: [u8; 4],
+    color: RColor,
     base_point: [f32; 2],
     spacing: f32
   ) {

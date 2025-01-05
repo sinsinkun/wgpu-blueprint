@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use renderer::*;
 
 use crate::*;
@@ -9,6 +11,7 @@ pub struct App {
   shapes: Vec<Shape>,
   camera_3d: RCamera,
   camera_overlay: RCamera,
+  time_since_last_fps: Duration,
 }
 impl Default for App {
   fn default() -> Self {
@@ -18,6 +21,7 @@ impl Default for App {
       shapes:  Vec::new(),
       camera_3d: RCamera::default(),
       camera_overlay: RCamera::default(),
+      time_since_last_fps: Duration::from_secs(1),
     }
   }
 }
@@ -44,7 +48,6 @@ impl AppBase for App {
       println!("Mouse State: {:?} -> {:?}", sys.m_inputs.pos_delta, sys.m_inputs.position);
     }
 
-    let fps_txt = format!("FPS: {:.2}", 1.0 / sys.frame_delta.as_secs_f32());
     // change color based on mouse position
     let mx = sys.m_inputs.position.x / sys.win_size.x;
     let my = sys.m_inputs.position.y / sys.win_size.y;
@@ -88,9 +91,15 @@ impl AppBase for App {
     renderer.render_on_texture(&self.pipelines[1..3], self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
 
     // render fps text to overlay
-    renderer.render_str_on_blank_texture(
-      self.textures[1], &fps_txt, 30.0, [0x34, 0xff, 0x34, 0xff], [10.0, 20.0], 2.0
-    );
+    if self.time_since_last_fps > Duration::from_millis(800) {
+      self.time_since_last_fps = Duration::from_nanos(0);
+      let fps_txt = format!("FPS: {:.2}", 1.0 / sys.frame_delta.as_secs_f32());
+      renderer.render_str_on_blank_texture(
+        self.textures[1], &fps_txt, 40.0, RColor::rgba(0x34, 0xff, 0x00, 0x22), [10.0, 30.0], 2.0
+      );
+    } else {
+      self.time_since_last_fps += *sys.frame_delta;
+    }
     vec!(self.pipelines[0])
   }
 }
@@ -98,7 +107,7 @@ impl App {
   fn init_overlay(&mut self, renderer: &mut Renderer) {
     renderer.load_font("./src/embed_assets/NotoSansCB.ttf");
     let tx = renderer.add_texture(1000, 750, None, true);
-    let txt_tx = renderer.add_texture(1000, 750, None, true);
+    let txt_tx = renderer.add_texture(1000, 750, None, false);
     let pipe = renderer.add_pipeline(RPipelineSetup{
       shader: RShader::Custom(include_str!("../assets/base_radial_shadow.wgsl")),
       texture1_id: Some(tx),

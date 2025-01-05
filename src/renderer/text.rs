@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 
 use ab_glyph::{Font, FontRef, Glyph, Rect};
-use image::{RgbaImage, Rgba};
+use image::{Rgba, Rgba32FImage, RgbaImage};
 use wgpu::{Extent3d, ImageCopyTexture, ImageDataLayout, Origin3d, Queue, Texture, TextureAspect, TextureFormat};
+
+use super::RColor;
 
 #[derive(Debug, PartialEq)]
 pub enum TextError {
@@ -132,7 +134,7 @@ pub fn draw_str_on_texture(
   font_data: &Vec<u8>,
   string: &str,
   size: f32,
-  color: [u8; 4],
+  color: RColor,
   base_point: [f32; 2],
   spacing: f32,
 ) -> Result<(), TextError> {
@@ -158,15 +160,13 @@ pub fn draw_str_on_texture(
         if absx < 1.0 || absx >= img.width() as f32 { return; }
         else if absy < 1.0 || absy >= img.height() as f32 { return; }
         // draw pixel
-        let r = color[0];
-        let g = color[1];
-        let b = color[2];
-        let mut a: u8 = f32::floor(c * 255.0) as u8;
-        if a > color[3] { a = color[3]; }
-        if a < 10 { return; }
-        else {
-          img.put_pixel(absx as u32, absy as u32, Rgba([r,g,b,a]));
-        }
+        let r = c * color.r * 255.0;
+        let g = c * color.g * 255.0;
+        let b = c * color.b * 255.0;
+        let a = if c > color.a { color.a * 255.0 } else { c * 255.0 };
+        if a < 10.0 { return; }
+        let clr = [r as u8, g as u8, b as u8, a as u8];
+        img.put_pixel(absx as u32, absy as u32, Rgba(clr));
       });
       // update position to draw glyph
       c_pos[0] += x_offset + spacing;
@@ -190,7 +190,7 @@ pub fn draw_str_on_texture(
       origin: Origin3d { x:0, y:0, z:0 },
       aspect: TextureAspect::All,
     },
-    &img,
+    &img.as_raw(),
     ImageDataLayout {
       offset: 0,
       bytes_per_row: Some(4 * dimensions.0),
