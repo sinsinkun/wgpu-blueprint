@@ -191,6 +191,63 @@ impl Mat4 {
       _ => ()
     }
   }
+  pub fn multiply_f32(&self, value: f32) -> Mat4 {
+    Mat4 {
+      a00: self.a00 * value, a01: self.a01 * value, a02: self.a02 * value, a03: self.a03 * value,
+      a10: self.a10 * value, a11: self.a11 * value, a12: self.a12 * value, a13: self.a13 * value,
+      a20: self.a20 * value, a21: self.a21 * value, a22: self.a22 * value, a23: self.a23 * value,
+      a30: self.a30 * value, a31: self.a31 * value, a32: self.a32 * value, a33: self.a33 * value,
+    }
+  }
+  pub fn multiply_vec4(&self, vec4: &Vec4) -> Vec4 {
+    let vec = vec4.as_array();
+    let mut out: [f32; 4] = [0.0; 4];
+    for r in 0..4 {
+      for (i, v) in self.row(r).iter().enumerate() {
+        out[r] += v * vec[i];
+      }
+    }
+    Vec4::from_array(out)
+  }
+  pub fn multiply_mat4(&self, rhs: &Mat4) -> Mat4 {
+    Mat4 {
+      a00: self.a00 * rhs.a00 + self.a01 * rhs.a10 + self.a02 * rhs.a20 + self.a03 * rhs.a30,
+      a01: self.a00 * rhs.a01 + self.a01 * rhs.a11 + self.a02 * rhs.a21 + self.a03 * rhs.a31,
+      a02: self.a00 * rhs.a02 + self.a01 * rhs.a12 + self.a02 * rhs.a22 + self.a03 * rhs.a32,
+      a03: self.a00 * rhs.a03 + self.a01 * rhs.a13 + self.a02 * rhs.a23 + self.a03 * rhs.a33,
+
+      a10: self.a10 * rhs.a00 + self.a11 * rhs.a10 + self.a12 * rhs.a20 + self.a13 * rhs.a30,
+      a11: self.a10 * rhs.a01 + self.a11 * rhs.a11 + self.a12 * rhs.a21 + self.a13 * rhs.a31,
+      a12: self.a10 * rhs.a02 + self.a11 * rhs.a12 + self.a12 * rhs.a22 + self.a13 * rhs.a32,
+      a13: self.a10 * rhs.a03 + self.a11 * rhs.a13 + self.a12 * rhs.a23 + self.a13 * rhs.a33,
+
+      a20: self.a20 * rhs.a00 + self.a21 * rhs.a10 + self.a22 * rhs.a20 + self.a23 * rhs.a30,
+      a21: self.a20 * rhs.a01 + self.a21 * rhs.a11 + self.a22 * rhs.a21 + self.a23 * rhs.a31,
+      a22: self.a20 * rhs.a02 + self.a21 * rhs.a12 + self.a22 * rhs.a22 + self.a23 * rhs.a32,
+      a23: self.a20 * rhs.a03 + self.a21 * rhs.a13 + self.a22 * rhs.a23 + self.a23 * rhs.a33,
+
+      a30: self.a30 * rhs.a00 + self.a31 * rhs.a10 + self.a32 * rhs.a20 + self.a33 * rhs.a30,
+      a31: self.a30 * rhs.a01 + self.a31 * rhs.a11 + self.a32 * rhs.a21 + self.a33 * rhs.a31,
+      a32: self.a30 * rhs.a02 + self.a31 * rhs.a12 + self.a32 * rhs.a22 + self.a33 * rhs.a32,
+      a33: self.a30 * rhs.a03 + self.a31 * rhs.a13 + self.a32 * rhs.a23 + self.a33 * rhs.a33,
+    }
+  }
+  pub fn to_string(&self) -> String {
+    let mut str = "Mat4: { ".to_owned();
+    for r in 0..4 {
+      str += "[";
+      for v in self.row(r) {
+        str = str + &format!("{:.4}", v) + ", ";
+      }
+      str.pop();
+      str.pop();
+      str += "], "
+    }
+    str.pop();
+    str.pop();
+    str += " }";
+    str
+  }
   // matrix transforms
   pub fn perspective(fov_y: f32, aspect_ratio: f32, near: f32, far: f32) -> [f32; 16] {
     let f = f32::tan(PI * 0.5 - 0.5 * fov_y * PI / 180.0);
@@ -431,32 +488,6 @@ impl Mat4 {
       right.z, n_up.z, fwd.z, 0.0,
       0.0, 0.0, 0.0, 1.0
     ]
-  }
-  pub fn multiply_vec4(mat: &Mat4, vec4: &Vec4) -> Vec4 {
-    let vec = vec4.as_array();
-    let mut out: [f32; 4] = [0.0; 4];
-    for r in 0..4 {
-      for (i, v) in mat.row(r).iter().enumerate() {
-        out[r] += v * vec[i];
-      }
-    }
-    Vec4::from_array(out)
-  }
-  pub fn to_string(&self) -> String {
-    let mut str = "Mat4: { ".to_owned();
-    for r in 0..4 {
-      str += "[";
-      for v in self.row(r) {
-        str = str + &v.to_string() + ", ";
-      }
-      str.pop();
-      str.pop();
-      str += "], "
-    }
-    str.pop();
-    str.pop();
-    str += " }";
-    str
   }
 }
 
