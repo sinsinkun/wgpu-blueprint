@@ -126,7 +126,7 @@ impl<'a> Renderer<'a> {
       msaa,
       zbuffer,
       limits: Limits::default(),
-      clear_color: Color { r: 0.01, g: 0.01, b: 0.02, a: 1.0 },
+      clear_color: Color { r: 0.002, g: 0.002, b: 0.008, a: 1.0 },
       default_cam,
       font_cache: None,
     };

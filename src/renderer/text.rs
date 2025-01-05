@@ -163,9 +163,8 @@ pub fn draw_str_on_texture(
         let b = color[2];
         let mut a: u8 = f32::floor(c * 255.0) as u8;
         if a > color[3] { a = color[3]; }
-        if a < 10 {
-          img.put_pixel(absx as u32, absy as u32, Rgba([0,0,0,0]));
-        } else {
+        if a < 10 { return; }
+        else {
           img.put_pixel(absx as u32, absy as u32, Rgba([r,g,b,a]));
         }
       });

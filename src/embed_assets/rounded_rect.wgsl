@@ -49,8 +49,8 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
   }
   // top right
   rx = x - (buf.rect_size.x - r);
-  ry = y - r;
-  if x > (buf.rect_size.x - r) && y < r && (rx * rx + ry * ry > r * r) {
+  ry = y - (buf.rect_size.y - r);
+  if x > (buf.rect_size.x - r) && y > (buf.rect_size.y - r) && (rx * rx + ry * ry > r * r) {
     discard;
   }
   // bottom left
@@ -61,9 +61,18 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
   }
   // bottom right
   rx = x - (buf.rect_size.x - r);
-  ry = y - (buf.rect_size.y - r);
-  if x > (buf.rect_size.x - r) && y > (buf.rect_size.y - r) && (rx * rx + ry * ry > r * r) {
+  ry = y - r;
+  if x > (buf.rect_size.x - r) && y < r && (rx * rx + ry * ry > r * r) {
     discard;
+  }
+
+  // drop shadow
+  let ir = r * 0.5;
+  if x > buf.rect_size.x - ir || y < ir {
+    return mix(buf.albedo, vec4f(0.0, 0.0, 0.0, 1.0), 0.5);
+  }
+  if x > (buf.rect_size.x - r) && y < r && (rx * rx + ry * ry > ir * ir) {
+    return mix(buf.albedo, vec4f(0.0, 0.0, 0.0, 1.0), 0.5);
   }
 
   return buf.albedo;

@@ -89,6 +89,7 @@ impl App {
     let tx = renderer.add_texture(2000, 1500, None, true);
     let txt_tx = renderer.add_texture(2000, 1500, None, true);
     let pipe = renderer.add_pipeline(RPipelineSetup{
+      shader: RShader::Custom(include_str!("../assets/base_radial_shadow.wgsl")),
       texture1_id: Some(tx),
       texture2_id: Some(txt_tx),
       ..Default::default()

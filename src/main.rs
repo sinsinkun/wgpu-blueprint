@@ -145,7 +145,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 		if self.frame_delta > RENDER_FPS_LOCK {
 			self.is_render_frame = true;
 			self.last_frame = now;
-			self.window.as_ref().unwrap().request_redraw();
+			if let Some(win) = &self.window {
+				win.request_redraw();
+			}
 			// fps debug
 			// let fps_1 = 1.0 / self.event_frame_delta.as_secs_f32();
 			// let fps_2 = 1.0 / self.frame_delta.as_secs_f32();
@@ -202,11 +204,21 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
           }
         }
       }
-      WindowEvent::CursorMoved { position, .. } => {
+			WindowEvent::CursorMoved { position, .. } => {
         self.mouse_cache.instp.x = position.x as f32;
 				self.mouse_cache.instp.y = position.y as f32;
       }
-      WindowEvent::Ime(ime) => {
+      WindowEvent::CursorLeft { .. } => {
+				if let Some(win) = &self.window {
+					win.set_cursor_visible(true);
+				}
+			}
+			WindowEvent::CursorEntered { .. } => {
+				if let Some(win) = &self.window {
+					win.set_cursor_visible(false);
+				}
+			}
+			WindowEvent::Ime(ime) => {
 				match ime {
 					Ime::Enabled => {
 						println!("Enabled IME inputs");
