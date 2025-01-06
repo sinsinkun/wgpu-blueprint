@@ -1,9 +1,6 @@
 #![allow(dead_code)]
 
-use std::default;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
-
-use crate::{vec3f, vec4f};
 
 pub const PI: f32 = 3.14159265;
 
@@ -594,6 +591,9 @@ impl Vec3 {
   pub fn magnitude(&self) -> f32 {
     f32::sqrt(self.x * self.x + self.y * self.y + self.z * self.z)
   }
+  pub fn xy(&self) -> Vec2 {
+    Vec2{ x: self.x, y: self.y }
+  }
 }
 impl Add for Vec3 {
   type Output = Vec3;
@@ -705,20 +705,20 @@ mod lin_alg_tests {
   }
   #[test]
   fn mat4_rotate1() {
-    let axis = vec3f!(0.0, 0.0, 1.0);
+    let axis = Vec3::new(0.0, 0.0, 1.0);
     let a = Mat4::rotate(&axis, 30.0);
     let b = Mat4::rotate_euler(0.0, 0.0, 30.0);
     assert_eq!(a, b);
   }
   #[test]
   fn mat4_rotate2() {
-    let a = Mat4::rotate(&vec3f!(0.0, 1.0, 0.0), 45.0);
+    let a = Mat4::rotate(&Vec3::new(0.0, 1.0, 0.0), 45.0);
     let b = Mat4::rotate_euler(0.0, 45.0, 0.0);
     assert_eq!(a, b);
   }
   #[test]
   fn mat4_rotate3() {
-    let a = Mat4::rotate(&vec3f!(1.0, 0.0, 0.0), 60.0);
+    let a = Mat4::rotate(&Vec3::new(1.0, 0.0, 0.0), 60.0);
     let b = Mat4::rotate_euler(60.0, 0.0, 0.0);
     assert_eq!(a, b);
   }
@@ -757,7 +757,7 @@ mod lin_alg_tests {
   #[test]
   fn mvp_test() {
     // model
-    let model_r = Mat4::rotate(&vec3f!(0.0, 1.0, 0.0), 0.0);
+    let model_r = Mat4::rotate(&Vec3::new(0.0, 1.0, 0.0), 0.0);
     let model_t = Mat4::translate(0.0, 0.0, 400.0);
     let model = Mat4::multiply(&model_r, &model_t);
     // view
@@ -772,7 +772,7 @@ mod lin_alg_tests {
     let mvp_temp = Mat4::multiply(&model, &view);
     let mvp = Mat4::multiply(&proj, &mvp_temp);
     let mvp_mat = Mat4::from_col_major(mvp);
-    let p = vec4f!(0.0, 0.0, 0.0, 1.0);
+    let p = Vec4::new(0.0, 0.0, 0.0, 1.0);
     let clip_p = Mat4::multiply_vec4(&mvp_mat, &p);
 
     println!("mvp: {} x p: {p:?} = clip_p: {clip_p:.4?}\n", mvp_mat.to_string());

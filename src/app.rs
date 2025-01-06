@@ -1,9 +1,8 @@
 use std::time::Duration;
 
-use renderer::*;
-
 use crate::*;
-use crate::ui::*;
+use renderer::*;
+use ui::*;
 
 #[derive(Debug)]
 pub struct App {
@@ -74,7 +73,7 @@ impl AppBase for App {
 
     // update circle
     renderer.update_object(RObjectUpdate::obj(self.objects[1])
-      .with_position(vec3f!(ax, ay, 0.0))
+      .with_position(vec3f!(ax, ay, 10.0))
       .with_camera(&self.camera_overlay)
       .with_color(RColor::rgba_pct(1.0 - mx, 1.0, 1.0 - my, 1.0)));
     // update rect
@@ -83,7 +82,7 @@ impl AppBase for App {
       .with_camera(&self.camera_overlay)
       .with_color(RColor::rgba_pct(0.2, my, mx, 1.0))
       .with_round_border(vec2f!(200.0, 100.0), 20.0));
-    self.buttons[0].update(renderer, Some(&self.camera_overlay));
+    self.buttons[0].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position);
     renderer.render_on_texture(&vec![
       self.pipelines[1],
       self.buttons[0].get_pipeline(),
@@ -151,7 +150,7 @@ impl App {
   }
   fn init_rounded_rect(&mut self, renderer: &mut Renderer) {
     let pipe3 = renderer.add_pipeline(RPipelineSetup {
-      shader: RShader::Custom("embed_assets/rounded_rect.wgsl"),
+      shader: RShader::Custom(include_str!("embed_assets/rounded_rect.wgsl")),
       ..Default::default()
     });
     let rect_data = Primitives::rect_indexed(200.0, 100.0, 0.0);

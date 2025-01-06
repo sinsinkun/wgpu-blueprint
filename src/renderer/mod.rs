@@ -1,6 +1,7 @@
 #![allow(dead_code, unused_imports)]
 
 use bytemuck::{Pod, Zeroable};
+use crate::math::*;
 
 mod root;
 pub use root::*;
@@ -11,35 +12,11 @@ pub use text::*;
 mod primitives;
 pub use primitives::*;
 
-mod lin_alg;
-pub use lin_alg::*;
-
 mod util;
 pub use util::*;
 
 mod model_loader;
 pub use model_loader::*;
-
-#[macro_export]
-macro_rules! vec2f {
-  ($x:expr, $y:expr) => {
-    Vec2::new($x, $y)
-  };
-}
-
-#[macro_export]
-macro_rules! vec3f {
-  ($x:expr, $y:expr, $z:expr) => {
-    Vec3::new($x, $y, $z)
-  };
-}
-
-#[macro_export]
-macro_rules! vec4f {
-  ($x:expr, $y:expr, $z:expr, $w:expr) => {
-    Vec4::new($x, $y, $z, $w)
-  };
-}
 
 // -- HELPER STRUCTS --
 #[repr(C)]

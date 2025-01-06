@@ -1,4 +1,5 @@
 use crate::renderer::*;
+use crate::math::*;
 use crate::{vec2f, vec3f};
 
 #[derive(Debug, Clone)]
@@ -9,6 +10,7 @@ pub struct UiButton {
   pub position: Vec3,
   pub size: Vec2,
   pub color: RColor,
+  pub hover_color: RColor,
   pub text: String,
   pub radius: f32,
 }
@@ -37,6 +39,7 @@ impl UiButton {
       position: vec3f!(0.0, 0.0, 0.0),
       size,
       color: RColor::GRAY,
+      hover_color: RColor::WHITE,
       radius: size.y / 4.0,
       text: String::new(),
     }
@@ -60,13 +63,15 @@ impl UiButton {
     self
   }
   // update fns
-  pub fn update(&mut self, renderer: &mut Renderer, camera: Option<&RCamera>) {
+  pub fn update(&mut self, renderer: &mut Renderer, camera: Option<&RCamera>, mouse_pos: Vec2) {
     // update logic
+    let hovered = false; // point_in_rect(&mouse_pos, &self.position.xy(), &self.size);
+    let active_color = if hovered { self.hover_color } else { self.color };
 
     // update render object
     let mut update = RObjectUpdate::obj(self.object_id)
       .with_position(vec3f!(self.size.x, self.size.y, self.position.z))
-      .with_color(self.color)
+      .with_color(active_color)
       .with_round_border(self.size, self.radius);
     if let Some(cam) = camera {
       update = update.with_camera(cam);

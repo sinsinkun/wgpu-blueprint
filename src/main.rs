@@ -12,8 +12,10 @@ use winit::window::{Window, WindowId};
 use wgpu::SurfaceError;
 
 // custom components
+mod math;
+use math::Vec2;
 mod renderer;
-use renderer::{RPipelineId, Renderer, Vec2};
+use renderer::{RPipelineId, Renderer};
 mod app;
 use app::App;
 mod ui;
