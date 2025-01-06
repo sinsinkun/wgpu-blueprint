@@ -3,12 +3,14 @@ use std::time::Duration;
 use renderer::*;
 
 use crate::*;
+use crate::ui::*;
 
 #[derive(Debug)]
 pub struct App {
   pipelines: Vec<RPipelineId>,
   textures: Vec<RTextureId>,
   objects: Vec<RObjectId>,
+  buttons: Vec<UiButton>,
   camera_3d: RCamera,
   camera_overlay: RCamera,
   time_since_last_fps: Duration,
@@ -19,6 +21,7 @@ impl Default for App {
       pipelines: Vec::new(),
       textures: Vec::new(),
       objects:  Vec::new(),
+      buttons: Vec::new(),
       camera_3d: RCamera::default(),
       camera_overlay: RCamera::default(),
       time_since_last_fps: Duration::from_secs(1),
@@ -33,6 +36,13 @@ impl AppBase for App {
     self.init_overlay(renderer);
     self.init_circle(renderer);
     self.init_rounded_rect(renderer);
+
+    let btn = UiButton::new(renderer, vec2f!(100.0, 50.0))
+      .at(vec3f!(100.0, 100.0, 0.0))
+      .with_color(RColor::rgb(0xdd, 0xaf, 0x4f))
+      .with_radius(10.0)
+      .with_text(renderer, "Click me".to_string(), 24.0, RColor::MAGENTA);
+    self.buttons.push(btn);
   }
   fn resize(&mut self, _renderer: &mut Renderer, _width: u32, height: u32) {
     let h = height as f32;
@@ -73,7 +83,12 @@ impl AppBase for App {
       .with_camera(&self.camera_overlay)
       .with_color(RColor::rgba_pct(0.2, my, mx, 1.0))
       .with_round_border(vec2f!(200.0, 100.0), 20.0));
-    renderer.render_on_texture(&self.pipelines[1..3], self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
+    self.buttons[0].update(renderer, Some(&self.camera_overlay));
+    renderer.render_on_texture(&vec![
+      self.pipelines[1],
+      self.buttons[0].get_pipeline(),
+      self.pipelines[2],
+    ], self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
 
     // update inner screen
     renderer.update_object(RObjectUpdate::obj(self.objects[0])
@@ -136,7 +151,7 @@ impl App {
   }
   fn init_rounded_rect(&mut self, renderer: &mut Renderer) {
     let pipe3 = renderer.add_pipeline(RPipelineSetup {
-      shader: RShader::RoundedRect,
+      shader: RShader::Custom("embed_assets/rounded_rect.wgsl"),
       ..Default::default()
     });
     let rect_data = Primitives::rect_indexed(200.0, 100.0, 0.0);

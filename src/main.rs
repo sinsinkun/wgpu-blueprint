@@ -14,9 +14,9 @@ use wgpu::SurfaceError;
 // custom components
 mod renderer;
 use renderer::{RPipelineId, Renderer, Vec2};
-
 mod app;
 use app::App;
+mod ui;
 
 const RENDER_FPS_LOCK: Duration = Duration::from_millis(1);
 const DEFAULT_SIZE: (u32, u32) = (800, 600);

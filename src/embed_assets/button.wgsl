@@ -1,5 +1,7 @@
 @group(0) @binding(0) var<uniform> mvp: MVP;
 @group(0) @binding(1) var<uniform> buf: Buf;
+@group(0) @binding(2) var tx_sampler: sampler;
+@group(0) @binding(3) var texture1: texture_2d<f32>;
 
 struct MVP {
   model: mat4x4<f32>,
@@ -66,8 +68,12 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
     discard;
   }
 
-  // drop shadow
   var out = buf.albedo;
+  // add text
+  let tx1 = textureSample(texture1, tx_sampler, input.uv);
+  out =  mix(out, vec4f(tx1.rgb, 1.0), tx1.a);
+
+  // drop shadow
   let ir = r * 0.5;
   if x > buf.rect_size.x - ir || y > buf.rect_size.y - ir {
     out = mix(out, vec4f(0.0, 0.0, 0.0, 1.0), 0.5);

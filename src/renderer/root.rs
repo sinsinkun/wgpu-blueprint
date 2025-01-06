@@ -175,11 +175,11 @@ impl<'a> Renderer<'a> {
     }
   }
   /// update default clear_color
-  pub fn set_clear_color(&mut self, r: f64, g: f64, b:f64, a:f64) {
-    self.clear_color.r = r;
-    self.clear_color.g = g;
-    self.clear_color.b = b;
-    self.clear_color.a = a;
+  pub fn set_clear_color(&mut self, color: RColor) {
+    self.clear_color.r = color.r as f64;
+    self.clear_color.g = color.g as f64;
+    self.clear_color.b = color.b as f64;
+    self.clear_color.a = color.a as f64;
   }
   /// load new font data into font_cache
   pub fn load_font(&mut self, font_path: &str) {
@@ -496,7 +496,6 @@ impl<'a> Renderer<'a> {
       RShader::Texture => { include_str!("../embed_assets/base.wgsl") }
       RShader::Text => { include_str!("../embed_assets/text.wgsl") }
       RShader::FlatColor => { include_str!("../embed_assets/flat_color.wgsl") }
-      RShader::RoundedRect => { include_str!("../embed_assets/rounded_rect.wgsl") }
       RShader::Custom(s) => { s }
     };
     // build render pipeline

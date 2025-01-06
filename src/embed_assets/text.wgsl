@@ -25,7 +25,7 @@ struct VertOut {
 fn vertexMain(input: VertIn) -> VertOut {
   var out: VertOut;
   out.pos = vec4f(input.pos, 1.0);
-  out.uv = input.uv;
+  out.uv = vec2f(input.uv.x, 1.0 - input.uv.y);
   out.normal = input.normal;
   return out;
 }

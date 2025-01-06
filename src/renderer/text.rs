@@ -90,12 +90,10 @@ pub fn load_cached_glyph(font_raw: &Vec<u8>, c: char, size: f32, color: [u8; 3])
 /// - max_y is overflow underneath origin.y
 pub fn measure_str_size(font_raw: &Vec<u8>, str: &str, size: f32) -> Result<StringRect, TextError> {
   let font = FontRef::try_from_slice(font_raw).map_err(|_| TextError::FileLoadError)?;
-
-  let space_dx = f32::round(size / 3.0);
   let mut rect = StringRect{ width: 0.0, min_y: 0.0, max_y: 0.0 };
   for c in str.chars() {
     let glyph: Glyph = font.glyph_id(c).with_scale(size);
-    if let Some(ch) = font.outline_glyph(glyph) {
+    if let Some(ch) = font.outline_glyph(glyph.clone()) {
       let bounds: Rect = ch.px_bounds();
       rect.width += bounds.max.x;
       if bounds.min.y < rect.min_y {
@@ -104,10 +102,9 @@ pub fn measure_str_size(font_raw: &Vec<u8>, str: &str, size: f32) -> Result<Stri
       if bounds.max.y > rect.max_y {
         rect.max_y = bounds.max.y;
       }
-      println!("char: \"{c}\" - {:?}", bounds);
     } else {
-      println!("char: \"{c}\" has no outline");
-      rect.width += space_dx;
+      let w = font.glyph_bounds(&glyph).width();
+      rect.width += w;
     }
   }
   Ok(rect)
