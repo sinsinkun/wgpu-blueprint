@@ -63,14 +63,21 @@ impl UiButton {
     self
   }
   // update fns
-  pub fn update(&mut self, renderer: &mut Renderer, camera: Option<&RCamera>, mouse_pos: Vec2) {
+  pub fn update(
+    &mut self,
+    renderer: &mut Renderer,
+    camera: Option<&RCamera>,
+    mouse_pos: Vec2,
+    screen_size: Vec2,
+  ) {
     // update logic
-    let hovered = false; // point_in_rect(&mouse_pos, &self.position.xy(), &self.size);
+    let mouse_pos_world = screen_to_world_2d(&mouse_pos, &screen_size);
+    let hovered = point_in_rect(&mouse_pos_world, &self.position.xy(), &self.size);
     let active_color = if hovered { self.hover_color } else { self.color };
 
     // update render object
     let mut update = RObjectUpdate::obj(self.object_id)
-      .with_position(vec3f!(self.size.x, self.size.y, self.position.z))
+      .with_position(self.position)
       .with_color(active_color)
       .with_round_border(self.size, self.radius);
     if let Some(cam) = camera {

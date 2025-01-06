@@ -83,7 +83,7 @@ impl AppBase for App {
       .with_camera(&self.camera_overlay)
       .with_color(RColor::rgba_pct(0.2, my, mx, 1.0))
       .with_round_border(vec2f!(200.0, 100.0), 20.0));
-    self.buttons[0].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position);
+    self.buttons[0].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position, sys.win_size);
     renderer.render_on_texture(&vec![
       self.pipelines[1],
       self.buttons[0].get_pipeline(),

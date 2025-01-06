@@ -4,6 +4,8 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 mod lin_alg;
 pub use lin_alg::*;
+mod utils;
+pub use utils::*;
 
 #[macro_export]
 macro_rules! vec2f {
