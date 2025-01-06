@@ -24,7 +24,7 @@ mod math_util_tests {
 
   #[test]
   fn stw_2d() {
-    let o = screen_to_world_2d(&vec2f!(450.0, 370.0), &vec2f!(800.0, 600.0));
-    assert_eq!(o, vec2f!(-50.0, -50.0));
+    let o = screen_to_world_2d(&vec2f!(400.0, 300.0), &vec2f!(800.0, 600.0));
+    assert_eq!(o, vec2f!(0.0, 0.0));
   }
 }
