@@ -30,6 +30,7 @@ impl Default for App {
 }
 impl AppBase for App {
   fn init(&mut self, sys: SystemInfo, renderer: &mut Renderer) {
+    renderer.load_font("./src/embed_assets/NotoSansCB.ttf");
     self.camera_3d = RCamera::new_persp(90.0, 0.1, 1000.0);
     self.camera_overlay = RCamera::new_ortho(0.0, 1000.0);
     self.camera_overlay.target_size = Some(sys.win_size);
@@ -37,12 +38,16 @@ impl AppBase for App {
     self.init_circle(renderer);
     self.init_rounded_rect(renderer);
 
-    let btn = UiButton::new(renderer, vec2f!(100.0, 50.0))
-      .at(vec3f!(100.0, 100.0, 0.0))
-      .with_color(RColor::rgb(0xdd, 0xaf, 0x4f))
-      .with_radius(10.0)
-      .with_text(renderer, "Click me".to_string(), 24.0, RColor::MAGENTA);
-    self.buttons.push(btn);
+    for i in 0..5 {
+      for j in 0..5 {
+        let btn = UiButton::new(renderer, vec2f!(100.0, 50.0))
+        .at(vec3f!(-300.0 + 20.0 * i as f32 + 100.0 * j as f32, -200.0 + 50.0 * i as f32, 0.0))
+        .with_colors(RColor::rgb(0xdd, 0xaf, 0x4f), RColor::rgb(0x44, 0xd4, 0xff))
+        .with_radius(10.0)
+        .with_text(renderer, format!("Button {}", i + 1), 24.0, RColor::BLACK);
+        self.buttons.push(btn);
+      }
+    }
   }
   fn resize(&mut self, _renderer: &mut Renderer, _width: u32, height: u32) {
     let h = height as f32;
@@ -79,16 +84,19 @@ impl AppBase for App {
       .with_color(RColor::rgba_pct(1.0 - mx, 1.0, 1.0 - my, 1.0)));
     // update rect
     renderer.update_object(RObjectUpdate::obj(self.objects[2])
-      .with_position(vec3f!(200.0, 100.0, -1.0))
+      .with_position(vec3f!(200.0, 100.0, 1.0))
       .with_camera(&self.camera_overlay)
       .with_color(RColor::rgba_pct(0.2, my, mx, 1.0))
       .with_round_border(vec2f!(200.0, 100.0), 20.0));
-    self.buttons[0].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position, sys.win_size);
-    renderer.render_on_texture(&vec![
-      self.pipelines[1],
-      self.buttons[0].get_pipeline(),
-      self.pipelines[2],
-    ], self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
+    for i in 0..25 {
+      self.buttons[i].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position, sys.win_size);
+    }
+
+    let mut pipelines = vec![self.pipelines[1], self.pipelines[2]];
+    for i in 0..25 {
+      pipelines.push(self.buttons[i].get_pipeline());
+    }
+    renderer.render_on_texture(&pipelines, self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
 
     // update inner screen
     renderer.update_object(RObjectUpdate::obj(self.objects[0])
@@ -112,7 +120,6 @@ impl AppBase for App {
 }
 impl App {
   fn init_overlay(&mut self, renderer: &mut Renderer) {
-    renderer.load_font("./src/embed_assets/NotoSansCB.ttf");
     let tx = renderer.add_texture(1000, 750, None, true);
     let txt_tx = renderer.add_texture(1000, 750, None, false);
     let pipe = renderer.add_pipeline(RPipelineSetup{

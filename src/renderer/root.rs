@@ -1046,6 +1046,21 @@ impl<'a> Renderer<'a> {
     self.render_impl(&mut encoder, target, view, zbuffer_view, pipeline_ids, clear_color);
     self.queue.submit(std::iter::once(encoder.finish()));
   }
+  pub fn measure_str_size(&self, text: &str, size: f32) -> StringRect {
+    let empty = StringRect {
+      width: 0.0,
+      max_y: 0.0,
+      min_y: 0.0,
+    };
+    if self.font_cache.is_none() {
+      return empty;
+    }
+    let font = self.font_cache.as_ref().unwrap();
+    match measure_str_size(&font, text, size) {
+      Ok(x) => x,
+      Err(_) => empty
+    }
+  }
   /// overwrite target texture with string image
   /// - non-text will be overwritten with transparent pixels
   /// - to overlay on a different texture, it must be fed into texture 2

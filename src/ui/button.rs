@@ -48,8 +48,9 @@ impl UiButton {
     self.position = pos;
     self
   }
-  pub fn with_color(mut self, color: RColor) -> Self {
+  pub fn with_colors(mut self, color: RColor, hover_color: RColor) -> Self {
     self.color = color;
+    self.hover_color = hover_color;
     self
   }
   pub fn with_radius(mut self, radius: f32) -> Self {
@@ -58,8 +59,11 @@ impl UiButton {
   }
   pub fn with_text(mut self, renderer: &mut Renderer, text: String, font_size: f32, color: RColor) -> Self {
     self.text = text;
-    // todo: measure text size to find proper base point
-    renderer.redraw_texture_with_str(self.text_tx, &self.text, font_size, color, vec2f!(5.0, 20.0), 2.0);
+    // measure text size to find proper base point
+    let srect = renderer.measure_str_size(&self.text, font_size);
+    let bx = (self.size.x - srect.width - self.radius) / 2.0;
+    let by = (self.size.y - srect.max_y - srect.min_y) / 2.0;
+    renderer.redraw_texture_with_str(self.text_tx, &self.text, font_size, color, vec2f!(bx, by), 2.0);
     self
   }
   // update fns
