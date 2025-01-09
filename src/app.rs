@@ -95,8 +95,7 @@ impl AppBase for App {
       self.buttons[i].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position, sys.win_size);
     }
 
-    let pipelines = vec![self.pipelines[1], self.pipelines[2], self.pipelines[3]];
-    renderer.render_on_texture(&pipelines, self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
+    renderer.render_on_texture(&self.pipelines[1..4], self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
 
     // update inner screen
     renderer.update_object(self.objects[0], RObjectUpdate::default()

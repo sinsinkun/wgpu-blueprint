@@ -894,7 +894,7 @@ impl<'a> Renderer<'a> {
     target: wgpu::TextureView,
     msaa_view: wgpu::TextureView,
     zbuffer_view: wgpu::TextureView,
-    pipeline_ids: &Vec<RPipelineId>,
+    pipeline_ids: &[RPipelineId],
     clear_color: Option<[f64; 4]>,
   ) {
     let mut clear_clr = self.clear_color;
@@ -946,7 +946,7 @@ impl<'a> Renderer<'a> {
     }
   }
   /// runs rendering pipeline(s) on target texture
-  pub fn render_on_texture(&mut self, pipeline_ids: &Vec<RPipelineId>, target_id: RTextureId, clear_color: Option<[f64;4]>) {
+  pub fn render_on_texture(&mut self, pipeline_ids: &[RPipelineId], target_id: RTextureId, clear_color: Option<[f64;4]>) {
     let tx = &self.textures[target_id.base];
     let tx_msaa = &self.textures[target_id.msaa];
     let tx_zbuffer = &self.textures[target_id.zbuffer];
@@ -963,7 +963,7 @@ impl<'a> Renderer<'a> {
   /// runs rendering pipeline(s) on window surface
   /// - finalizes queue and submits it
   /// - draws to window surface
-  pub fn render_to_screen(&mut self, pipeline_ids: &Vec<RPipelineId>) -> Result<(), wgpu::SurfaceError> {
+  pub fn render_to_screen(&mut self, pipeline_ids: &[RPipelineId]) -> Result<(), wgpu::SurfaceError> {
     let output = self.screen.get_current_texture()?;
     let tvd = TextureViewDescriptor::default();
     let target = output.texture.create_view(&tvd);
