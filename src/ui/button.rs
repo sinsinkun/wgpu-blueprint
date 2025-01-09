@@ -4,7 +4,6 @@ use crate::{vec2f, vec3f};
 
 #[derive(Debug, Clone)]
 pub struct UiButton {
-  pipeline_id: RPipelineId,
   object_id: RObjectId,
   text_tx: RTextureId,
   pub position: Vec3,
@@ -13,27 +12,26 @@ pub struct UiButton {
   pub hover_color: RColor,
   pub text: String,
   pub radius: f32,
-  updated: bool,
 }
 impl UiButton {
-  // initialize fns
-  pub fn new(renderer: &mut Renderer, size: Vec2) -> Self {
-    let tx_id = renderer.add_texture(size.x as u32, size.y as u32, None, false);
-    let pipeline_id = renderer.add_pipeline(RPipelineSetup {
+  pub fn new_pipeline(renderer: &mut Renderer) -> RPipelineId {
+    renderer.add_pipeline(RPipelineSetup {
       shader: RShader::Custom(include_str!("../embed_assets/button.wgsl")),
       ..Default::default()
-    });
-
+    })
+  }
+  // initialize fns
+  pub fn new(renderer: &mut Renderer, btn_pipe: &RPipelineId, size: Vec2) -> Self {
+    let tx_id = renderer.add_texture(size.x as u32, size.y as u32, None, false);
     let rect_data = Primitives::rect_indexed(size.x, size.y, 0.0);
     let rect_id = renderer.add_object(RObjectSetup {
-      pipeline_id,
+      pipeline_id: *btn_pipe,
       texture1_id: Some(tx_id),
       vertex_data: rect_data.0,
       indices: rect_data.1,
       ..Default::default()
     });
     Self {
-      pipeline_id,
       object_id: rect_id,
       text_tx: tx_id,
       position: vec3f!(0.0, 0.0, 0.0),
@@ -42,7 +40,6 @@ impl UiButton {
       hover_color: RColor::WHITE,
       radius: size.y / 4.0,
       text: String::new(),
-      updated: false,
     }
   }
   pub fn at(mut self, pos: Vec3) -> Self {
@@ -89,8 +86,5 @@ impl UiButton {
       update = update.with_camera(cam);
     }
     renderer.update_object(self.object_id, update);
-  }
-  pub fn get_pipeline(&self) -> RPipelineId {
-    self.pipeline_id
   }
 }

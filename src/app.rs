@@ -38,13 +38,15 @@ impl AppBase for App {
     self.init_circle(renderer);
     self.init_rounded_rect(renderer);
 
+    let button_pipe = UiButton::new_pipeline(renderer);
+    self.pipelines.push(button_pipe);
     for i in 0..10 {
       for j in 0..5 {
-        let btn = UiButton::new(renderer, vec2f!(100.0, 50.0))
+        let btn = UiButton::new(renderer, &button_pipe, vec2f!(100.0, 50.0))
         .at(vec3f!(-300.0 + 20.0 * i as f32 + 100.0 * j as f32, -200.0 + 50.0 * i as f32, 0.0))
         .with_colors(RColor::rgb(0xdd, 0xaf, 0x4f), RColor::rgb(0x44, 0xd4, 0xff))
         .with_radius(10.0)
-        .with_text(renderer, format!("Button {}", i + 1), 24.0, RColor::BLACK);
+        .with_text(renderer, format!("Button {}", i * 10 + j), 24.0, RColor::BLACK);
         self.buttons.push(btn);
       }
     }
@@ -93,10 +95,7 @@ impl AppBase for App {
       self.buttons[i].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position, sys.win_size);
     }
 
-    let mut pipelines = vec![self.pipelines[1], self.pipelines[2]];
-    for i in 0..50 {
-      pipelines.push(self.buttons[i].get_pipeline());
-    }
+    let pipelines = vec![self.pipelines[1], self.pipelines[2], self.pipelines[3]];
     renderer.render_on_texture(&pipelines, self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
 
     // update inner screen
