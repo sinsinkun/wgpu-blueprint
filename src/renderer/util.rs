@@ -1,4 +1,4 @@
-use std::default;
+use std::default::Default;
 use std::convert::Into;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
@@ -6,64 +6,6 @@ use ab_glyph::Rect;
 
 use super::*;
 use crate::vec3f;
-
-// helper for defining object transform data
-#[derive(Debug, Default, PartialEq, Clone)]
-pub struct Shape {
-  pub id: RObjectId,
-  pub position: Vec3,
-  pub rotate_axis: Vec3,
-  pub rotate_deg: f32,
-  pub scale: Vec3,
-  pub visible: bool,
-  pub v_index: Option<Vec<f32>>,
-  pub anim_transforms: Vec<[f32; 16]>,
-}
-impl Shape {
-  pub fn new(renderer: &mut Renderer, pipeline_id: RPipelineId, vertex_data: Vec<RVertex>, index_data: Option<Vec<u32>>) -> Self {
-    let mut setup = RObjectSetup {
-      pipeline_id,
-      vertex_data,
-      ..Default::default()
-    };
-    if let Some(indices) = index_data {
-      setup.indices = indices;
-    }
-    let id = renderer.add_object(setup);
-    Self {
-      id,
-      position: vec3f!(0.0, 0.0, 0.0),
-      rotate_axis: vec3f!(0.0, 0.0, 1.0),
-      rotate_deg: 0.0,
-      scale: vec3f!(1.0, 1.0, 1.0),
-      visible: true,
-      v_index: None,
-      anim_transforms: Vec::new(),
-    }
-  }
-  pub fn new_anim(renderer: &mut Renderer, pipeline_id: RPipelineId, vertex_data: Vec<RVertexAnim>, index_data: Option<Vec<u32>>) -> Self {
-    let mut setup = RObjectSetup {
-      pipeline_id,
-      anim_vertex_data: vertex_data,
-      vertex_type: RObjectSetup::VERTEX_TYPE_ANIM,
-      ..Default::default()
-    };
-    if let Some(indices) = index_data {
-      setup.indices = indices;
-    }
-    let id = renderer.add_object(setup);
-    Self {
-      id,
-      position: vec3f!(0.0, 0.0, 0.0),
-      rotate_axis: vec3f!(0.0, 0.0, 1.0),
-      rotate_deg: 0.0,
-      scale: vec3f!(1.0, 1.0, 1.0),
-      visible: true,
-      v_index: None,
-      anim_transforms: Vec::new(),
-    }
-  }
-}
 
 // helper for defining camera/view matrix
 #[derive(Debug, Clone)]
@@ -120,93 +62,103 @@ impl RCamera {
   }
 }
 
-// helper for building new pipeline
-#[derive(Debug, Default, Clone)]
+// --- --- --- --- --- --- --- --- --- --- //
+// --- --- --- Pipeline Helpers -- --- --- //
+// --- --- --- --- --- --- --- --- --- --- //
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum RShader<'a> {
   #[default]
   Texture, Text, FlatColor, Custom(&'a str)
 }
-#[derive(Debug, Default)]
-pub enum RUniformVisibility {
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum RCullMode {
   #[default]
-  Vertex, Fragment, Both
-}
-#[derive(Debug)]
-pub struct RUniformSetup {
-  pub bind_slot: u32,
-  pub visibility: RUniformVisibility,
-  pub size_in_bytes: u32,
-}
-#[derive(Debug)]
-pub struct RPipelineSetup<'a> {
-  pub shader: RShader<'a>,
-  pub max_obj_count: usize,
-  pub texture1_id: Option<RTextureId>,
-  pub texture2_id: Option<RTextureId>,
-  pub cull_mode: u8,
-  pub poly_mode: u8,
-  pub vertex_fn: &'a str,
-  pub fragment_fn: &'a str,
-  pub uniforms: Vec<RUniformSetup>,
-  pub vertex_type: u8,
-  pub max_joints_count: usize,
-}
-impl Default for RPipelineSetup<'_> {
-  fn default() -> Self {
-      RPipelineSetup {
-        shader: RShader::Texture,
-        max_obj_count: 10,
-        texture1_id: None,
-        texture2_id: None,
-        cull_mode: RPipelineSetup::CULL_MODE_NONE,
-        poly_mode: RPipelineSetup::POLY_MODE_TRI,
-        vertex_fn: "vertexMain",
-        fragment_fn: "fragmentMain",
-        uniforms: Vec::new(),
-        vertex_type: RPipelineSetup::VERTEX_TYPE_STATIC,
-        max_joints_count: 0,
-      }
-  }
-}
-impl RPipelineSetup<'_> {
-  // cull mode constants
-  pub const CULL_MODE_NONE: u8 = 0;
-  pub const CULL_MODE_BACK: u8 = 1;
-  pub const CULL_MODE_FRONT: u8 = 2;
-  // vertex type constants
-  pub const VERTEX_TYPE_STATIC: u8 = 0;
-  pub const VERTEX_TYPE_ANIM: u8 = 1;
-  // polygon mode constants
-  pub const POLY_MODE_TRI: u8 = 0;
-  pub const POLY_MODE_LINE: u8 = 1;
-  pub const POLY_MODE_POINT: u8 = 2;
+  None, Front, Back
 }
 
-// helper for building new render object
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum RPolyMode {
+  #[default]
+  Fill, Line, Point
+}
+
 #[derive(Debug)]
-pub struct RObjectSetup {
-  pub pipeline_id: RPipelineId,
+pub struct RPipelineSetupV2<'a> {
+  pub shader: RShader<'a>,
+  pub cull_mode: RCullMode,
+  pub poly_mode: RPolyMode,
+  pub vertex_fn: &'a str,
+  pub fragment_fn: &'a str,
+  pub has_animations: bool,
+}
+impl Default for RPipelineSetupV2<'_> {
+  fn default() -> Self {
+    Self {
+      shader: RShader::Texture,
+      cull_mode: RCullMode::None,
+      poly_mode: RPolyMode::Fill,
+      vertex_fn: "vertexMain",
+      fragment_fn: "fragmentMain",
+      has_animations: false,
+    }
+  }
+}
+
+#[derive(Debug)]
+pub struct RPipelineV2 {
+  pub pipe: wgpu::RenderPipeline,
+  pub obj_indices: Vec<usize>,
+  pub has_animations: bool,
+}
+
+// --- --- --- --- --- --- --- --- --- --- //
+// --- ---  Render Object Helpers  --- --- //
+// --- --- --- --- --- --- --- --- --- --- //
+
+#[derive(Debug)]
+pub struct RObjectSetupV2 {
+  pub pipeline_id: RPipelineIdV2,
   pub vertex_data: Vec<RVertex>,
   pub instances: u32,
   pub indices: Vec<u32>,
-  pub vertex_type: u8,
   pub anim_vertex_data: Vec<RVertexAnim>,
+  pub texture1_id: Option<RTextureIdV2>,
+  pub texture2_id: Option<RTextureIdV2>,
+  pub max_joints: usize,
 }
-impl Default for RObjectSetup {
+impl Default for RObjectSetupV2 {
   fn default() -> Self {
-    RObjectSetup  {
-      pipeline_id: RPipelineId(0),
+    Self {
+      pipeline_id: RPipelineIdV2(0),
       vertex_data: Vec::new(),
       indices: Vec::new(),
       instances: 1,
       anim_vertex_data: Vec::new(),
-      vertex_type: RObjectSetup::VERTEX_TYPE_STATIC,
+      texture1_id: None,
+      texture2_id: None,
+      max_joints: 0,
     }
   }
 }
-impl RObjectSetup {
-  pub const VERTEX_TYPE_STATIC: u8 = 0;
-  pub const VERTEX_TYPE_ANIM: u8 = 1;
+
+#[derive(Debug)]
+pub struct RObjectV2 {
+  pub visible: bool,
+  pub pipe_id: RPipelineIdV2,
+  // vertex data
+  pub v_buffer: wgpu::Buffer,
+  pub v_count: usize,
+  pub max_joints: usize,
+  pub index_buffer: Option<wgpu::Buffer>,
+  pub index_count: u32,
+  pub instances: u32,
+  // render data
+  pub bind_group0: wgpu::BindGroup,
+  pub buffers0: Vec<wgpu::Buffer>,
+  pub texture1: Option<RTextureIdV2>,
+  pub texture2: Option<RTextureIdV2>,
 }
 
 // helper for updating render object
@@ -218,7 +170,6 @@ pub enum RRotation {
 
 #[derive(Debug)]
 pub struct RObjectUpdate<'a> {
-  pub object_id: RObjectId,
   pub translate: Vec3,
   pub rotate: RRotation,
   pub scale: Vec3,
@@ -231,7 +182,6 @@ pub struct RObjectUpdate<'a> {
 impl Default for RObjectUpdate<'_> {
   fn default() -> Self {
     RObjectUpdate {
-      object_id: RObjectId(0, 0),
       translate: vec3f!(0.0, 0.0, 0.0),
       rotate: RRotation::AxisAngle(vec3f!(0.0, 0.0, 1.0), 0.0),
       scale: vec3f!(1.0, 1.0, 1.0),
@@ -244,19 +194,6 @@ impl Default for RObjectUpdate<'_> {
   }
 }
 impl<'a> RObjectUpdate<'a> {
-  pub fn obj(obj_id: RObjectId) -> Self {
-    Self {
-      object_id: obj_id,
-      translate: vec3f!(0.0, 0.0, 0.0),
-      rotate: RRotation::AxisAngle(vec3f!(0.0, 0.0, 1.0), 0.0),
-      scale: vec3f!(1.0, 1.0, 1.0),
-      visible: true,
-      camera: None,
-      uniforms: Vec::new(),
-      anim_transforms: Vec::new(),
-      gen_buf: [0.0; 64],
-    }
-  }
   pub fn with_position(mut self, pos: Vec3) -> Self {
     self.translate = pos;
     self

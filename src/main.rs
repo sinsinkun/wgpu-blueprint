@@ -15,9 +15,9 @@ use wgpu::SurfaceError;
 mod math;
 use math::Vec2;
 mod renderer;
-use renderer::{RPipelineId, Renderer};
-mod app;
-use app::App;
+use renderer::{RPipelineIdV2, RendererV2 as Renderer};
+mod app2;
+use app2::App;
 mod ui;
 
 const RENDER_FPS_LOCK: Duration = Duration::from_millis(1);
@@ -76,7 +76,7 @@ pub trait AppBase {
 	/// - update render object variables
 	/// - render to textures
 	/// output pipeline ids to render to screen
-	fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId>;
+	fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineIdV2>;
   /// actions to take after exiting event loop
 	/// - destroy dangling resources
 	fn cleanup(&mut self) {}
@@ -255,7 +255,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				} else if self.resize_state == 2 {
 					// call resize updates
 					if let Some(r) = &mut self.renderer {
-						r.resize(self.window_size.0, self.window_size.1);
+						r.resize_screen(self.window_size.0, self.window_size.1);
 						self.app.resize(r, self.window_size.0, self.window_size.1);
 					}
 					self.resize_state = 0;
@@ -275,7 +275,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 						Ok(_) => (),
 						Err(SurfaceError::Lost | SurfaceError::Outdated) => {
 							println!("Err: surface was lost or outdated. Attempting to re-connect");
-							r.resize(self.window_size.0, self.window_size.1);
+							r.resize_screen(self.window_size.0, self.window_size.1);
 						}
 						Err(SurfaceError::OutOfMemory) => {
 							println!("Err: Out of memory. Exiting");

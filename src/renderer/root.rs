@@ -9,6 +9,100 @@ use wgpu::*;
 
 use super::*;
 
+// (pipeline id, object id)
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct RObjectId (pub usize, pub usize);
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct RPipelineId (pub usize);
+
+// (texture id, msaa texture id, z-buffer texture id)
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct RTextureId (pub usize, pub usize, pub usize);
+
+#[derive(Debug, Default)]
+pub enum RUniformVisibility {
+  #[default]
+  Vertex, Fragment, Both
+}
+#[derive(Debug)]
+pub struct RUniformSetup {
+  pub bind_slot: u32,
+  pub visibility: RUniformVisibility,
+  pub size_in_bytes: u32,
+}
+#[derive(Debug)]
+pub struct RPipelineSetup<'a> {
+  pub shader: RShader<'a>,
+  pub max_obj_count: usize,
+  pub texture1_id: Option<RTextureId>,
+  pub texture2_id: Option<RTextureId>,
+  pub cull_mode: u8,
+  pub poly_mode: u8,
+  pub vertex_fn: &'a str,
+  pub fragment_fn: &'a str,
+  pub uniforms: Vec<RUniformSetup>,
+  pub vertex_type: u8,
+  pub max_joints_count: usize,
+}
+impl Default for RPipelineSetup<'_> {
+  fn default() -> Self {
+      RPipelineSetup {
+        shader: RShader::Texture,
+        max_obj_count: 10,
+        texture1_id: None,
+        texture2_id: None,
+        cull_mode: RPipelineSetup::CULL_MODE_NONE,
+        poly_mode: RPipelineSetup::POLY_MODE_TRI,
+        vertex_fn: "vertexMain",
+        fragment_fn: "fragmentMain",
+        uniforms: Vec::new(),
+        vertex_type: RPipelineSetup::VERTEX_TYPE_STATIC,
+        max_joints_count: 0,
+      }
+  }
+}
+impl RPipelineSetup<'_> {
+  // cull mode constants
+  pub const CULL_MODE_NONE: u8 = 0;
+  pub const CULL_MODE_BACK: u8 = 1;
+  pub const CULL_MODE_FRONT: u8 = 2;
+  // vertex type constants
+  pub const VERTEX_TYPE_STATIC: u8 = 0;
+  pub const VERTEX_TYPE_ANIM: u8 = 1;
+  // polygon mode constants
+  pub const POLY_MODE_TRI: u8 = 0;
+  pub const POLY_MODE_LINE: u8 = 1;
+  pub const POLY_MODE_POINT: u8 = 2;
+}
+
+// helper for building new render object
+#[derive(Debug)]
+pub struct RObjectSetup {
+  pub pipeline_id: RPipelineId,
+  pub vertex_data: Vec<RVertex>,
+  pub instances: u32,
+  pub indices: Vec<u32>,
+  pub vertex_type: u8,
+  pub anim_vertex_data: Vec<RVertexAnim>,
+}
+impl Default for RObjectSetup {
+  fn default() -> Self {
+    RObjectSetup  {
+      pipeline_id: RPipelineId(0),
+      vertex_data: Vec::new(),
+      indices: Vec::new(),
+      instances: 1,
+      anim_vertex_data: Vec::new(),
+      vertex_type: RObjectSetup::VERTEX_TYPE_STATIC,
+    }
+  }
+}
+impl RObjectSetup {
+  pub const VERTEX_TYPE_STATIC: u8 = 0;
+  pub const VERTEX_TYPE_ANIM: u8 = 1;
+}
+
 // -- PRIMARY RENDERER INTERFACE --
 #[derive(Debug)]
 pub struct Renderer<'a> {
