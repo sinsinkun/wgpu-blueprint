@@ -15,9 +15,9 @@ use wgpu::SurfaceError;
 mod math;
 use math::Vec2;
 mod renderer;
-use renderer::{RPipelineIdV2, RendererV2 as Renderer};
-mod app2;
-use app2::App;
+use renderer::{RPipelineId, Renderer};
+mod app;
+use app::App;
 mod ui;
 
 const RENDER_FPS_LOCK: Duration = Duration::from_millis(1);
@@ -76,7 +76,7 @@ pub trait AppBase {
 	/// - update render object variables
 	/// - render to textures
 	/// output pipeline ids to render to screen
-	fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineIdV2>;
+	fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId>;
   /// actions to take after exiting event loop
 	/// - destroy dangling resources
 	fn cleanup(&mut self) {}

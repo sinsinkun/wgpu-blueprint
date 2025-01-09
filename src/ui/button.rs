@@ -4,9 +4,9 @@ use crate::{vec2f, vec3f};
 
 #[derive(Debug, Clone)]
 pub struct UiButton {
-  pipeline_id: RPipelineIdV2,
-  object_id: RObjectIdV2,
-  text_tx: RTextureIdV2,
+  pipeline_id: RPipelineId,
+  object_id: RObjectId,
+  text_tx: RTextureId,
   pub position: Vec3,
   pub size: Vec2,
   pub color: RColor,
@@ -17,15 +17,15 @@ pub struct UiButton {
 }
 impl UiButton {
   // initialize fns
-  pub fn new(renderer: &mut RendererV2, size: Vec2) -> Self {
+  pub fn new(renderer: &mut Renderer, size: Vec2) -> Self {
     let tx_id = renderer.add_texture(size.x as u32, size.y as u32, None, false);
-    let pipeline_id = renderer.add_pipeline(RPipelineSetupV2 {
+    let pipeline_id = renderer.add_pipeline(RPipelineSetup {
       shader: RShader::Custom(include_str!("../embed_assets/button.wgsl")),
       ..Default::default()
     });
 
     let rect_data = Primitives::rect_indexed(size.x, size.y, 0.0);
-    let rect_id = renderer.add_object(RObjectSetupV2 {
+    let rect_id = renderer.add_object(RObjectSetup {
       pipeline_id,
       texture1_id: Some(tx_id),
       vertex_data: rect_data.0,
@@ -58,7 +58,7 @@ impl UiButton {
     self.radius = radius;
     self
   }
-  pub fn with_text(mut self, renderer: &mut RendererV2, text: String, font_size: f32, color: RColor) -> Self {
+  pub fn with_text(mut self, renderer: &mut Renderer, text: String, font_size: f32, color: RColor) -> Self {
     self.text = text;
     // measure text size to find proper base point
     let srect = renderer.measure_str_size(0, &self.text, font_size);
@@ -70,7 +70,7 @@ impl UiButton {
   // update fns
   pub fn update(
     &mut self,
-    renderer: &mut RendererV2,
+    renderer: &mut Renderer,
     camera: Option<&RCamera>,
     mouse_pos: Vec2,
     screen_size: Vec2,
@@ -90,7 +90,7 @@ impl UiButton {
     }
     renderer.update_object(self.object_id, update);
   }
-  pub fn get_pipeline(&self) -> RPipelineIdV2 {
+  pub fn get_pipeline(&self) -> RPipelineId {
     self.pipeline_id
   }
 }

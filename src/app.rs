@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::*;
 use renderer::*;
 use math::*;
-use ui::*;
+use ui::UiButton;
 
 #[derive(Debug)]
 pub struct App {
@@ -30,7 +30,7 @@ impl Default for App {
 }
 impl AppBase for App {
   fn init(&mut self, sys: SystemInfo, renderer: &mut Renderer) {
-    renderer.load_font("./src/embed_assets/NotoSansCB.ttf");
+    let _ = renderer.load_font("./src/embed_assets/NotoSansCB.ttf");
     self.camera_3d = RCamera::new_persp(90.0, 0.1, 1000.0);
     self.camera_overlay = RCamera::new_ortho(0.0, 1000.0);
     self.camera_overlay.target_size = Some(sys.win_size);
@@ -38,7 +38,7 @@ impl AppBase for App {
     self.init_circle(renderer);
     self.init_rounded_rect(renderer);
 
-    for i in 0..5 {
+    for i in 0..10 {
       for j in 0..5 {
         let btn = UiButton::new(renderer, vec2f!(100.0, 50.0))
         .at(vec3f!(-300.0 + 20.0 * i as f32 + 100.0 * j as f32, -200.0 + 50.0 * i as f32, 0.0))
@@ -49,10 +49,11 @@ impl AppBase for App {
       }
     }
   }
-  fn resize(&mut self, _renderer: &mut Renderer, _width: u32, height: u32) {
+  fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {
     let h = height as f32;
     let w = h * 4.0 / 3.0;
     self.camera_overlay.target_size = Some(vec2f!(w, h));
+    renderer.resize_texture(self.textures[0], Some(self.objects[0]), width, height);
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // process inputs
@@ -78,28 +79,28 @@ impl AppBase for App {
     else { 0.0 };
 
     // update circle
-    renderer.update_object(RObjectUpdate::obj(self.objects[1])
+    renderer.update_object(self.objects[1], RObjectUpdate::default()
       .with_position(vec3f!(ax, ay, 10.0))
       .with_camera(&self.camera_overlay)
       .with_color(RColor::rgba_pct(1.0 - mx, 1.0, 1.0 - my, 1.0)));
     // update rect
-    renderer.update_object(RObjectUpdate::obj(self.objects[2])
-      .with_position(vec3f!(200.0, 100.0, 1.0))
+    renderer.update_object(self.objects[2], RObjectUpdate::default()
+      .with_position(vec3f!(200.0, 100.0, 0.0))
       .with_camera(&self.camera_overlay)
       .with_color(RColor::rgba_pct(0.2, my, mx, 1.0))
       .with_round_border(vec2f!(200.0, 100.0), 20.0));
-    for i in 0..25 {
+    for i in 0..50 {
       self.buttons[i].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position, sys.win_size);
     }
 
     let mut pipelines = vec![self.pipelines[1], self.pipelines[2]];
-    for i in 0..25 {
+    for i in 0..50 {
       pipelines.push(self.buttons[i].get_pipeline());
     }
     renderer.render_on_texture(&pipelines, self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));
 
     // update inner screen
-    renderer.update_object(RObjectUpdate::obj(self.objects[0])
+    renderer.update_object(self.objects[0], RObjectUpdate::default()
       .with_position(vec3f!(0.0, 0.0, -6.5))
       .with_euler_rotation(ry, rx, 0.0)
       .with_camera(&self.camera_3d));
@@ -108,7 +109,7 @@ impl AppBase for App {
       self.time_since_last_fps = Duration::from_nanos(0);
       let fps_txt = format!("FPS: {:.2}", 1.0 / sys.frame_delta.as_secs_f32());
       renderer.redraw_texture_with_str(
-        self.textures[1], &fps_txt, 40.0, RColor::rgba(0x34, 0xff, 0x00, 0x22), vec2f!(10.0, 30.0), 2.0
+        0, self.textures[1], &fps_txt, 40.0, RColor::rgba(0x34, 0xff, 0x00, 0x22), vec2f!(10.0, 30.0), 2.0
       );
     } else {
       self.time_since_last_fps += *sys.frame_delta;
@@ -122,17 +123,16 @@ impl App {
   fn init_overlay(&mut self, renderer: &mut Renderer) {
     let tx = renderer.add_texture(1000, 750, None, true);
     let txt_tx = renderer.add_texture(1000, 750, None, false);
-    let pipe = renderer.add_pipeline(RPipelineSetup{
+    let pipe = renderer.add_pipeline(RPipelineSetup {
       shader: RShader::Custom(include_str!("../assets/base_radial_shadow.wgsl")),
-      texture1_id: Some(tx),
-      texture2_id: Some(txt_tx),
       ..Default::default()
     });
     let rect_data = Primitives::rect_indexed(20.0, 15.0, 0.0);
     let rect = renderer.add_object(RObjectSetup {
-      pipeline_id: pipe,
       vertex_data: rect_data.0,
       indices: rect_data.1,
+      texture1_id: Some(tx),
+      texture2_id: Some(txt_tx),
       ..Default::default()
     });
 
@@ -142,7 +142,7 @@ impl App {
     self.objects.push(rect);
   }
   fn init_circle(&mut self, renderer: &mut Renderer) {
-    let pipe2 = renderer.add_pipeline(RPipelineSetup{
+    let pipe2 = renderer.add_pipeline(RPipelineSetup {
       shader: RShader::FlatColor,
       ..Default::default()
     });

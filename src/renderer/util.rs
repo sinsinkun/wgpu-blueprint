@@ -2,6 +2,7 @@ use std::default::Default;
 use std::convert::Into;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
+use bytemuck::{Pod, Zeroable};
 use ab_glyph::Rect;
 
 use super::*;
@@ -67,6 +68,19 @@ impl RCamera {
 // --- --- --- --- --- --- --- --- --- --- //
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct RPipelineId (pub usize);
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct RObjectId (pub usize);
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct RTextureId {
+  pub base: usize,
+  pub msaa: usize,
+  pub zbuffer: usize,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum RShader<'a> {
   #[default]
   Texture, Text, FlatColor, Custom(&'a str)
@@ -85,7 +99,7 @@ pub enum RPolyMode {
 }
 
 #[derive(Debug)]
-pub struct RPipelineSetupV2<'a> {
+pub struct RPipelineSetup<'a> {
   pub shader: RShader<'a>,
   pub cull_mode: RCullMode,
   pub poly_mode: RPolyMode,
@@ -93,7 +107,7 @@ pub struct RPipelineSetupV2<'a> {
   pub fragment_fn: &'a str,
   pub has_animations: bool,
 }
-impl Default for RPipelineSetupV2<'_> {
+impl Default for RPipelineSetup<'_> {
   fn default() -> Self {
     Self {
       shader: RShader::Texture,
@@ -107,7 +121,7 @@ impl Default for RPipelineSetupV2<'_> {
 }
 
 #[derive(Debug)]
-pub struct RPipelineV2 {
+pub struct RPipeline {
   pub pipe: wgpu::RenderPipeline,
   pub obj_indices: Vec<usize>,
   pub has_animations: bool,
@@ -117,21 +131,50 @@ pub struct RPipelineV2 {
 // --- ---  Render Object Helpers  --- --- //
 // --- --- --- --- --- --- --- --- --- --- //
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable)]
+pub struct RVertex {
+  pub position: [f32; 3],
+  pub uv: [f32; 2],
+  pub normal: [f32; 3],
+}
+impl RVertex {
+  pub fn add_joints(&self, joints: [u32; 4], weights: [f32; 4]) -> RVertexAnim {
+    RVertexAnim {
+      position: self.position,
+      uv: self.uv,
+      normal: self.normal,
+      joint_ids: joints,
+      joint_weights: weights
+    }
+  }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable)]
+pub struct RVertexAnim {
+  pub position: [f32; 3],
+  pub uv: [f32; 2],
+  pub normal: [f32; 3],
+  pub joint_ids: [u32; 4],
+  pub joint_weights: [f32; 4]
+}
+
 #[derive(Debug)]
-pub struct RObjectSetupV2 {
-  pub pipeline_id: RPipelineIdV2,
+pub struct RObjectSetup {
+  pub pipeline_id: RPipelineId,
   pub vertex_data: Vec<RVertex>,
   pub instances: u32,
   pub indices: Vec<u32>,
   pub anim_vertex_data: Vec<RVertexAnim>,
-  pub texture1_id: Option<RTextureIdV2>,
-  pub texture2_id: Option<RTextureIdV2>,
+  pub texture1_id: Option<RTextureId>,
+  pub texture2_id: Option<RTextureId>,
   pub max_joints: usize,
 }
-impl Default for RObjectSetupV2 {
+impl Default for RObjectSetup {
   fn default() -> Self {
     Self {
-      pipeline_id: RPipelineIdV2(0),
+      pipeline_id: RPipelineId(0),
       vertex_data: Vec::new(),
       indices: Vec::new(),
       instances: 1,
@@ -144,9 +187,9 @@ impl Default for RObjectSetupV2 {
 }
 
 #[derive(Debug)]
-pub struct RObjectV2 {
+pub struct RObject {
   pub visible: bool,
-  pub pipe_id: RPipelineIdV2,
+  pub pipe_id: RPipelineId,
   // vertex data
   pub v_buffer: wgpu::Buffer,
   pub v_count: usize,
@@ -157,8 +200,8 @@ pub struct RObjectV2 {
   // render data
   pub bind_group0: wgpu::BindGroup,
   pub buffers0: Vec<wgpu::Buffer>,
-  pub texture1: Option<RTextureIdV2>,
-  pub texture2: Option<RTextureIdV2>,
+  pub texture1: Option<RTextureId>,
+  pub texture2: Option<RTextureId>,
 }
 
 // helper for updating render object

@@ -10,27 +10,10 @@ use wgpu::*;
 use super::*;
 
 // --- --- --- --- --- --- --- --- --- --- //
-// --- --- --- Helper Structs  --- --- --- //
-// --- --- --- --- --- --- --- --- --- --- //
-
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-pub struct RPipelineIdV2 (pub usize);
-
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-pub struct RObjectIdV2 (pub usize);
-
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-pub struct RTextureIdV2 {
-  pub base: usize,
-  pub msaa: usize,
-  pub zbuffer: usize,
-}
-
-// --- --- --- --- --- --- --- --- --- --- //
 // -- -- Primary Renderer Interface -- --- //
 // --- --- --- --- --- --- --- --- --- --- //
 #[derive(Debug)]
-pub struct RendererV2<'a> {
+pub struct Renderer<'a> {
   // wgpu related config
   device: wgpu::Device,
   queue: wgpu::Queue,
@@ -44,12 +27,12 @@ pub struct RendererV2<'a> {
   // custom setup
   default_cam: RCamera,
   pub clear_color: wgpu::Color,
-  pub pipelines: Vec<RPipelineV2>,
+  pub pipelines: Vec<RPipeline>,
   pub textures: Vec<wgpu::Texture>,
-  pub objects: Vec<RObjectV2>,
+  pub objects: Vec<RObject>,
   font_cache: Vec<Vec<u8>>,
 }
-impl<'a> RendererV2<'a> {
+impl<'a> Renderer<'a> {
   // --- --- --- --- --- --- --- --- --- --- //
   // --- --- --- -- -- Setup --- --- --- --- //
   // --- --- --- --- --- --- --- --- --- --- //
@@ -235,7 +218,7 @@ impl<'a> RendererV2<'a> {
   // --- --- --- --- --- --- --- --- --- --- //
 
   /// create new texture
-  pub fn add_texture(&mut self, width: u32, height: u32, texture_path: Option<&Path>, use_device_format: bool) -> RTextureIdV2 {
+  pub fn add_texture(&mut self, width: u32, height: u32, texture_path: Option<&Path>, use_device_format: bool) -> RTextureId {
     let id = self.textures.len();
     let mut texture_size = Extent3d { width, height, depth_or_array_layers: 1 };
     let mut texture_data: Option<DynamicImage> = None;
@@ -319,10 +302,10 @@ impl<'a> RendererV2<'a> {
     self.textures.push(texture);
     self.textures.push(msaa);
     self.textures.push(zbuffer);
-    RTextureIdV2 { base: id, msaa: id + 1, zbuffer: id + 2 }
+    RTextureId { base: id, msaa: id + 1, zbuffer: id + 2 }
   }
   /// copies image (from path) onto texture
-  pub fn update_texture(&mut self, texture_id: RTextureIdV2, texture_path: &Path) {
+  pub fn update_texture(&mut self, texture_id: RTextureId, texture_path: &Path) {
     let texture = &mut self.textures[texture_id.base];
     match ImageReader::open(texture_path) {
       Ok(img_file) => match img_file.decode() {
@@ -362,7 +345,7 @@ impl<'a> RendererV2<'a> {
     }
   }
   /// destroy existing texture and replace it with a new texture with a new size
-  pub fn resize_texture(&mut self, texture_id: RTextureIdV2, obj_id: Option<RObjectIdV2>, width: u32, height: u32) {
+  pub fn resize_texture(&mut self, texture_id: RTextureId, obj_id: Option<RObjectId>, width: u32, height: u32) {
     let old_texture = &mut self.textures[texture_id.base];
 
     // make new texture
@@ -500,6 +483,7 @@ impl<'a> RendererV2<'a> {
       entries: &bind_group0_entries
     })
   }
+  // defines custom bind_group(1) layout
   fn build_bind_group1_layout(&self) -> wgpu::BindGroupLayout {
     todo!()
   }
@@ -527,7 +511,7 @@ impl<'a> RendererV2<'a> {
   /// create render pipeline
   /// - creates rendering process that object passes through
   /// - defines shaders + uniforms
-  pub fn add_pipeline(&mut self, setup: RPipelineSetupV2) -> RPipelineIdV2 {
+  pub fn add_pipeline(&mut self, setup: RPipelineSetup) -> RPipelineId {
     let id: usize = self.pipelines.len();
 
     // define pipeline config
@@ -608,13 +592,13 @@ impl<'a> RendererV2<'a> {
     });
 
     // add to cache
-    let pipe = RPipelineV2 {
+    let pipe = RPipeline {
       pipe: pipeline,
       obj_indices: Vec::new(),
       has_animations: setup.has_animations,
     };
     self.pipelines.push(pipe);
-    RPipelineIdV2(id)
+    RPipelineId(id)
   }
 
   // --- --- --- --- --- --- --- --- --- --- //
@@ -624,9 +608,9 @@ impl<'a> RendererV2<'a> {
   // create bind_group that matches bind_group(0) layout
   fn add_bind_group0(
     &self,
-    pipeline: RPipelineIdV2,
-    texture1: Option<RTextureIdV2>,
-    texture2: Option<RTextureIdV2>,
+    pipeline: RPipelineId,
+    texture1: Option<RTextureId>,
+    texture2: Option<RTextureId>,
     has_animations: bool,
     max_joints: usize,
   ) -> (wgpu::BindGroup, Vec<wgpu::Buffer>) {
@@ -749,7 +733,7 @@ impl<'a> RendererV2<'a> {
     todo!()
   }
   /// add new render object to a pipeline
-  pub fn add_object(&mut self, setup: RObjectSetupV2) -> RObjectIdV2 {
+  pub fn add_object(&mut self, setup: RObjectSetup) -> RObjectId {
     let pipe = &self.pipelines[setup.pipeline_id.0];
     let id = self.objects.len();
 
@@ -794,7 +778,7 @@ impl<'a> RendererV2<'a> {
     let (bind_group0, buffers0) = self.add_bind_group0(setup.pipeline_id, setup.texture1_id, setup.texture2_id, pipe.has_animations, setup.max_joints);
 
     // save to cache
-    let obj = RObjectV2 {
+    let obj = RObject {
       visible: true,
       pipe_id: setup.pipeline_id,
       v_buffer,
@@ -810,7 +794,7 @@ impl<'a> RendererV2<'a> {
     };
     self.objects.push(obj);
     self.pipelines[setup.pipeline_id.0].obj_indices.push(id);
-    let object_id = RObjectIdV2(id);
+    let object_id = RObjectId(id);
     // self.update_object(RObjectUpdate{ object_id, ..Default::default() });
     object_id
   }
@@ -861,7 +845,7 @@ impl<'a> RendererV2<'a> {
     mvp
   }
   /// update existing render object attached to a pipeline
-  pub fn update_object(&mut self, obj: RObjectIdV2, update: RObjectUpdate) {
+  pub fn update_object(&mut self, obj: RObjectId, update: RObjectUpdate) {
     let mvp = self.create_mvp(&update);
     let buf = update.gen_buf;
     let obj = &mut self.objects[obj.0];
@@ -910,7 +894,7 @@ impl<'a> RendererV2<'a> {
     target: wgpu::TextureView,
     msaa_view: wgpu::TextureView,
     zbuffer_view: wgpu::TextureView,
-    pipeline_ids: &Vec<RPipelineIdV2>,
+    pipeline_ids: &Vec<RPipelineId>,
     clear_color: Option<[f64; 4]>,
   ) {
     let mut clear_clr = self.clear_color;
@@ -962,7 +946,7 @@ impl<'a> RendererV2<'a> {
     }
   }
   /// runs rendering pipeline(s) on target texture
-  pub fn render_on_texture(&mut self, pipeline_ids: &Vec<RPipelineIdV2>, target_id: RTextureIdV2, clear_color: Option<[f64;4]>) {
+  pub fn render_on_texture(&mut self, pipeline_ids: &Vec<RPipelineId>, target_id: RTextureId, clear_color: Option<[f64;4]>) {
     let tx = &self.textures[target_id.base];
     let tx_msaa = &self.textures[target_id.msaa];
     let tx_zbuffer = &self.textures[target_id.zbuffer];
@@ -979,7 +963,7 @@ impl<'a> RendererV2<'a> {
   /// runs rendering pipeline(s) on window surface
   /// - finalizes queue and submits it
   /// - draws to window surface
-  pub fn render_to_screen(&mut self, pipeline_ids: &Vec<RPipelineIdV2>) -> Result<(), wgpu::SurfaceError> {
+  pub fn render_to_screen(&mut self, pipeline_ids: &Vec<RPipelineId>) -> Result<(), wgpu::SurfaceError> {
     let output = self.screen.get_current_texture()?;
     let tvd = TextureViewDescriptor::default();
     let target = output.texture.create_view(&tvd);
@@ -1012,6 +996,7 @@ impl<'a> RendererV2<'a> {
       }
     }
   }
+  /// get string bounding box, origin set where text would begin
   pub fn measure_str_size(&self, font_idx: usize, text: &str, size: f32) -> StringRect {
     let empty = StringRect {
       width: 0.0,
@@ -1032,7 +1017,7 @@ impl<'a> RendererV2<'a> {
   pub fn redraw_texture_with_str(
     &mut self,
     mut font_idx: usize,
-    texture_id: RTextureIdV2,
+    texture_id: RTextureId,
     input: &str,
     size:f32,
     color: RColor,
