@@ -14,6 +14,7 @@ pub struct App {
   camera_3d: RCamera,
   camera_overlay: RCamera,
   time_since_last_fps: Duration,
+  zoom: f32,
 }
 impl Default for App {
   fn default() -> Self {
@@ -25,6 +26,7 @@ impl Default for App {
       camera_3d: RCamera::default(),
       camera_overlay: RCamera::default(),
       time_since_last_fps: Duration::from_secs(1),
+      zoom: 1.0,
     }
   }
 }
@@ -63,8 +65,9 @@ impl AppBase for App {
       println!("Inputs: {:?}", sys.kb_inputs);
     }
     if sys.m_inputs.left == MKBState::Down {
-      println!("Mouse State: {:?} -> {:?}", sys.m_inputs.pos_delta, sys.m_inputs.position);
+      println!("Mouse State: {:?} -> {:?}", sys.m_inputs.pos_delta, sys.m_inputs.scroll);
     }
+    self.zoom += sys.m_inputs.scroll / 20.0;
 
     // change color based on mouse position
     let mx = sys.m_inputs.position.x / sys.win_size.x;
@@ -100,6 +103,7 @@ impl AppBase for App {
     // update inner screen
     renderer.update_object(self.objects[0], RObjectUpdate::default()
       .with_position(vec3f!(0.0, 0.0, -6.5))
+      .with_scale(vec3f!(self.zoom, self.zoom, 1.0))
       .with_euler_rotation(ry, rx, 0.0)
       .with_camera(&self.camera_3d));
     // render fps text to inner screen

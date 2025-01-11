@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalSize;
-use winit::event::{Ime, KeyEvent, MouseButton, StartCause, WindowEvent};
+use winit::dpi::{PhysicalSize, PhysicalPosition};
+use winit::event::{Ime, KeyEvent, MouseButton, MouseScrollDelta, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{PhysicalKey, KeyCode};
 use winit::window::{Window, WindowId};
@@ -33,6 +33,7 @@ pub struct MouseState {
   instp: Vec2,
   position: Vec2,
   pos_delta: Vec2,
+	scroll: f32,
 }
 impl MouseState {
   fn new() -> Self {
@@ -42,6 +43,7 @@ impl MouseState {
       instp: Vec2::new(400.0, 300.0),
       position: Vec2::new(400.0, 300.0),
       pos_delta: Vec2::new(0.0, 0.0),
+			scroll: 0.0,
     }
   }
   fn frame_sync(&mut self) {
@@ -121,6 +123,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				self.window = Some(window_handle.clone());
 				env_logger::init();
 				let mut wgpu = pollster::block_on(Renderer::new(window_handle.clone()));
+				window_handle.set_ime_allowed(true);
 				let sys = SystemInfo {
 					kb_inputs: &self.input_cache,
 					m_inputs: &self.mouse_cache,
@@ -219,6 +222,14 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
           }
         }
       }
+			WindowEvent::MouseWheel { delta, .. } => {
+				match delta {
+					MouseScrollDelta::LineDelta(_x, y) => {
+						self.mouse_cache.scroll += y;
+					}
+					MouseScrollDelta::PixelDelta(_ps) => ()
+				}
+			}
 			WindowEvent::CursorMoved { position, .. } => {
         self.mouse_cache.instp.x = position.x as f32;
 				self.mouse_cache.instp.y = position.y as f32;
@@ -239,6 +250,11 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				match ime {
 					Ime::Enabled => {
 						println!("Enabled IME inputs");
+						if let Some(win) = &self.window {
+							let pos: PhysicalPosition<f32> = self.mouse_cache.position.as_array().into();
+							let size = PhysicalSize::new(100, 100);
+							win.set_ime_cursor_area(pos, size);
+						}
 					}
 					Ime::Commit(chr) => {
 						println!("Committing character {chr}");
@@ -296,6 +312,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 					self.input_cache.remove(&k);
 				}
         // clean up mouse cache
+				self.mouse_cache.scroll = 0.0;
         if self.mouse_cache.left == MKBState::Pressed {
           self.mouse_cache.left = MKBState::Down;
         } else if self.mouse_cache.left == MKBState::Released {
