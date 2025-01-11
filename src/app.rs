@@ -32,7 +32,6 @@ impl Default for App {
 }
 impl AppBase for App {
   fn init(&mut self, sys: SystemInfo, renderer: &mut Renderer) {
-    let _ = renderer.load_font("./src/embed_assets/NotoSansCB.ttf");
     self.camera_3d = RCamera::new_persp(90.0, 0.1, 1000.0);
     self.camera_overlay = RCamera::new_ortho(0.0, 1000.0);
     self.camera_overlay.target_size = Some(sys.win_size);

@@ -118,6 +118,10 @@ impl<'a> Renderer<'a> {
       view_formats: &[]
     });
 
+    let font1 = include_bytes!("../embed_assets/NotoSerifCHB.ttf");
+    let font2 = include_bytes!("../embed_assets/NotoSansCB.ttf");
+    let font_cache = vec!(font1.to_vec(), font2.to_vec());
+
     Self {
       device,
       queue,
@@ -132,7 +136,7 @@ impl<'a> Renderer<'a> {
       textures: Vec::new(),
       objects: Vec::new(),
       clear_color: Color { r: 0.002, g: 0.002, b: 0.008, a: 1.0 },
-      font_cache: Vec::new(),
+      font_cache,
     }
   }
   /// Destroys surface screen texture and remakes it
@@ -1026,9 +1030,7 @@ impl<'a> Renderer<'a> {
   ) {
     let texture = &mut self.textures[texture_id.base];
     // fetch font data
-    if self.font_cache.len() == 0 || self.font_cache.len() <= font_idx { 
-      let font = include_bytes!("../embed_assets/NotoSerifCHB.ttf");
-      self.font_cache.push(font.to_vec());
+    if self.font_cache.len() <= font_idx { 
       font_idx = 0;
     }
     // draw string onto existing texture

@@ -58,10 +58,10 @@ impl UiButton {
   pub fn with_text(mut self, renderer: &mut Renderer, text: String, font_size: f32, color: RColor) -> Self {
     self.text = text;
     // measure text size to find proper base point
-    let srect = renderer.measure_str_size(0, &self.text, font_size);
+    let srect = renderer.measure_str_size(1, &self.text, font_size);
     let bx = (self.size.x - srect.width - self.radius) / 2.0;
     let by = (self.size.y - srect.max_y - srect.min_y) / 2.0;
-    renderer.redraw_texture_with_str(0, self.text_tx, &self.text, font_size, color, vec2f!(bx, by), 2.0);
+    renderer.redraw_texture_with_str(1, self.text_tx, &self.text, font_size, color, vec2f!(bx, by), 2.0);
     self
   }
   // update fns
