@@ -13,11 +13,11 @@ use wgpu::SurfaceError;
 
 // custom components
 mod math;
-use math::Vec2;
+use math::{Vec2, Vec3};
 mod renderer;
 use renderer::{RPipelineId, Renderer};
-mod app;
-use app::App;
+mod app2;
+use app2::App;
 mod ui;
 
 const RENDER_FPS_LOCK: Duration = Duration::from_millis(1);

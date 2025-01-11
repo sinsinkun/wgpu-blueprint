@@ -1,13 +1,5 @@
-@group(0) @binding(0) var<uniform> mvp: MVP;
 @group(0) @binding(2) var tx_sampler: sampler;
 @group(0) @binding(3) var texture1: texture_2d<f32>;
-@group(0) @binding(4) var texture2: texture_2d<f32>;
-
-struct MVP {
-  model: mat4x4<f32>,
-  view: mat4x4<f32>,
-  proj: mat4x4<f32>,
-}
 
 struct VertIn {
   @location(0) pos: vec3f,
@@ -25,7 +17,7 @@ struct VertOut {
 fn vertexMain(input: VertIn) -> VertOut {
   var out: VertOut;
   out.pos = vec4f(input.pos, 1.0);
-  out.uv = vec2f(input.uv.x, 1.0 - input.uv.y);
+  out.uv = vec2f(input.uv.x, input.uv.y);
   out.normal = input.normal;
   return out;
 }

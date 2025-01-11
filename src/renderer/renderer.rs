@@ -349,7 +349,7 @@ impl<'a> Renderer<'a> {
     }
   }
   /// destroy existing texture and replace it with a new texture with a new size
-  pub fn resize_texture(&mut self, texture_id: RTextureId, obj_id: Option<RObjectId>, width: u32, height: u32) {
+  pub fn resize_texture(&mut self, texture_id: RTextureId, obj_id: RObjectId, width: u32, height: u32) {
     let old_texture = &mut self.textures[texture_id.base];
 
     // make new texture
@@ -396,16 +396,14 @@ impl<'a> Renderer<'a> {
     self.textures[texture_id.zbuffer] = new_zbuffer;
 
     // update bind group
-    if let Some(id) = obj_id {
-      let pipe_id = self.objects[id.0].pipe_id;
-      let tx1_id = self.objects[id.0].texture1;
-      let tx2_id = self.objects[id.0].texture2;
-      let max_joints = self.objects[id.0].max_joints;
-      let pipe = &self.pipelines[pipe_id.0];
-      let (bind_group0, buffers0) = self.add_bind_group0(pipe_id, tx1_id, tx2_id, pipe.has_animations, max_joints);
-      self.objects[id.0].bind_group0 = bind_group0;
-      self.objects[id.0].buffers0 = buffers0;
-    }
+    let pipe_id = self.objects[obj_id.0].pipe_id;
+    let tx1_id = self.objects[obj_id.0].texture1;
+    let tx2_id = self.objects[obj_id.0].texture2;
+    let max_joints = self.objects[obj_id.0].max_joints;
+    let pipe = &self.pipelines[obj_id.0];
+    let (bind_group0, buffers0) = self.add_bind_group0(pipe_id, tx1_id, tx2_id, pipe.has_animations, max_joints);
+    self.objects[obj_id.0].bind_group0 = bind_group0;
+    self.objects[obj_id.0].buffers0 = buffers0;
   }
 
   // --- --- --- --- --- --- --- --- --- --- //
@@ -986,6 +984,27 @@ impl<'a> Renderer<'a> {
   // --- --- --- Text Rendering  --- --- --- //
   // --- --- --- --- --- --- --- --- --- --- //
 
+  /// shortcut to make pipeline that creates an overlay on the screen
+  /// and draws text to it
+  pub fn add_overlay_pipe(&mut self) -> (RPipelineId, RObjectId, RTextureId) {
+    // build full screen texture
+    let texture_id = self.add_texture(self.config.width, self.config.height, None, true);
+    // build render pipeline
+    let pipeline_id = self.add_pipeline(RPipelineSetup {
+      shader: RShader::Text,
+      ..Default::default()
+    });
+    // build object
+    let (rect_data, rect_i) = Primitives::rect_indexed(2.0, 2.0, 0.0);
+    let rect = self.add_object(RObjectSetup {
+      pipeline_id,
+      vertex_data: rect_data,
+      indices: rect_i,
+      texture1_id: Some(texture_id),
+      ..Default::default()
+    });
+    (pipeline_id, rect, texture_id)
+  }
   /// load new font data into font_cache
   pub fn load_font(&mut self, font_path: &str) -> Result<usize, std::io::Error> {
     match fs::read(font_path) {
