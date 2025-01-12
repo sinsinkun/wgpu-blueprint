@@ -39,7 +39,7 @@ impl App {
 }
 impl AppBase for App {
   fn init(&mut self, _sys: SystemInfo, renderer: &mut Renderer) {
-    renderer.set_clear_color(RColor::hsv(0.577, 0.5, 0.2));
+    renderer.set_clear_color(RColor::hsv(0.65, 0.4, 0.02));
     let (pid, oid, tid) = renderer.add_overlay_pipe();
     self.pipelines.push(pid);
     self.objects.push(oid);
@@ -50,6 +50,9 @@ impl AppBase for App {
     renderer.resize_texture(self.textures[0], self.objects[0], width, height);
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
+    // mouse pos as percent of window
+    let mx = sys.m_inputs.position.x / sys.win_size.x;
+    let my = sys.m_inputs.position.y / sys.win_size.y;
     // follow mouse
     let ax = sys.m_inputs.position.x - (sys.win_size.x / 2.0);
     let ay = sys.m_inputs.position.y - (sys.win_size.y / 2.0);
@@ -57,7 +60,7 @@ impl AppBase for App {
     // update circle
     renderer.update_object(self.objects[1], RObjectUpdate::default()
       .with_position(vec3f!(ax, ay, 10.0))
-      .with_color(RColor::BLUE));
+      .with_color(RColor::rgba_pct(mx, my, 1.0 - (mx + my), 1.0)));
 
     // render fps text to inner screen
     if self.time_since_last_fps > Duration::from_millis(800) {

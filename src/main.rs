@@ -7,7 +7,8 @@ use winit::dpi::{PhysicalSize, PhysicalPosition};
 use winit::event::{Ime, KeyEvent, MouseButton, MouseScrollDelta, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{PhysicalKey, KeyCode};
-use winit::window::{Window, WindowId};
+use winit::platform::windows::IconExtWindows;
+use winit::window::{Icon, Window, WindowId};
 
 use wgpu::SurfaceError;
 
@@ -113,9 +114,17 @@ struct WinitApp<'a, T> {
 impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	// initialization
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+		let icon = match Icon::from_path("icon.ico", None) {
+			Ok(ico) => Some(ico),
+			Err(e) => {
+				println!("Failed to open icon: {:?}", e);
+				None
+			}
+		};
 		let window_attributes = Window::default_attributes()
 			.with_min_inner_size(PhysicalSize::new(400.0, 300.0))
 			.with_inner_size(PhysicalSize::new(DEFAULT_SIZE.0, DEFAULT_SIZE.1))
+			.with_window_icon(icon)
 			.with_title("CXGui");
 		match event_loop.create_window(window_attributes) {
 			Ok(win) => {
