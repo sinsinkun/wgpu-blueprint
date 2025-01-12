@@ -66,6 +66,12 @@ impl AppBase for App {
       .with_text(renderer, "World".to_owned(), 28.0, RColor::WHITE)
       .with_colors(RColor::rgb(0x1a, 0x1a, 0x3f), RColor::rgb(0x2d, 0x2d, 0x8d));
     self.ui.push(UiComponent::Button(btn2));
+
+    let btn3 = UiButton::new(renderer, &btn_pipe, vec2f!(120.0, 50.0))
+      .at(vec3f!(180.0, -180.0, 0.0))
+      .with_text(renderer, "Byte sized".to_owned(), 28.0, RColor::BLACK)
+      .with_colors(RColor::rgb(0x4a, 0x4a, 0x6f), RColor::rgb(0x7d, 0x7d, 0xcd));
+    self.ui.push(UiComponent::Button(btn3));
   }
   fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {
     renderer.resize_texture(self.textures[0], self.objects[0], width, height);
@@ -83,13 +89,14 @@ impl AppBase for App {
       .with_position(vec3f!(ax, ay, 10.0))
       .with_color(RColor::rgba_pct(mx, my, 1.0 - (mx + my), 1.0)));
 
-    // update ui
-    for cmpt in &mut self.ui {
-      match cmpt {
+    // update ui in reverse order
+    let mut action_available = true;
+    for cmpt in self.ui.iter_mut().rev() {
+      action_available = match cmpt {
         UiComponent::Button(btn) => {
-          btn.update(renderer, None, sys.m_inputs.position, sys.win_size);
+          btn.update(renderer, None, sys.m_inputs.position, sys.win_size, action_available)
         }
-      }
+      };
     }
 
     // render fps text to inner screen
@@ -97,7 +104,7 @@ impl AppBase for App {
       self.time_since_last_fps = Duration::from_nanos(0);
       let fps_txt = format!("FPS: {:.2}", 1.0 / sys.frame_delta.as_secs_f32());
       renderer.redraw_texture_with_str(
-        0, self.textures[0], &fps_txt, 40.0, RColor::rgba(0x34, 0xff, 0x00, 0xff), vec2f!(10.0, 30.0), 2.0
+        1, self.textures[0], &fps_txt, 32.0, RColor::rgba(0x34, 0xff, 0x00, 0xff), vec2f!(5.0, 20.0), 2.0
       );
     } else {
       self.time_since_last_fps += *sys.frame_delta;

@@ -71,11 +71,19 @@ impl UiButton {
     camera: Option<&RCamera>,
     mouse_pos: Vec2,
     screen_size: Vec2,
-  ) {
-    // update logic
-    let mouse_pos_world = screen_to_world_2d(&mouse_pos, &screen_size);
-    let hovered = point_in_rect(&mouse_pos_world, &self.position.xy(), &self.size);
-    let active_color = if hovered { self.hover_color } else { self.color };
+    action_available: bool,
+  ) -> bool {
+    let mut aa = action_available;
+    let mut active_color = self.color;
+    if aa {
+      // update logic
+      let mouse_pos_world = screen_to_world_2d(&mouse_pos, &screen_size);
+      let hovered = point_in_rect(&mouse_pos_world, &self.position.xy(), &self.size);
+      if hovered {
+        aa = false;
+        active_color = self.hover_color;
+      }
+    }
 
     // update render object
     let mut update = RObjectUpdate::default()
@@ -86,5 +94,8 @@ impl UiButton {
       update = update.with_camera(cam);
     }
     renderer.update_object(self.object_id, update);
+
+    // return if action was consumed
+    aa
   }
 }
