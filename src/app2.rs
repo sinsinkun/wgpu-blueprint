@@ -2,12 +2,14 @@ use std::time::Duration;
 
 use crate::*;
 use renderer::*;
+use ui::{UiComponent, UiButton};
 
 #[derive(Debug)]
 pub struct App {
   pipelines: Vec<RPipelineId>,
   textures: Vec<RTextureId>,
   objects: Vec<RObjectId>,
+  ui: Vec<UiComponent>,
   time_since_last_fps: Duration,
 }
 impl Default for App {
@@ -16,11 +18,18 @@ impl Default for App {
       pipelines: Vec::new(),
       textures: Vec::new(),
       objects:  Vec::new(),
+      ui: Vec::new(),
       time_since_last_fps: Duration::from_secs(1),
     }
   }
 }
 impl App {
+  fn init_overlay(&mut self, renderer: &mut Renderer) {
+    let (pid, oid, tid) = renderer.add_overlay_pipe();
+    self.pipelines.push(pid);
+    self.objects.push(oid);
+    self.textures.push(tid);
+  }
   fn init_circle(&mut self, renderer: &mut Renderer) {
     let pipe2 = renderer.add_pipeline(RPipelineSetup {
       shader: RShader::FlatColor,
@@ -40,11 +49,23 @@ impl App {
 impl AppBase for App {
   fn init(&mut self, _sys: SystemInfo, renderer: &mut Renderer) {
     renderer.set_clear_color(RColor::hsv(0.65, 0.4, 0.02));
-    let (pid, oid, tid) = renderer.add_overlay_pipe();
-    self.pipelines.push(pid);
-    self.objects.push(oid);
-    self.textures.push(tid);
+    self.init_overlay(renderer);
     self.init_circle(renderer);
+
+    let btn_pipe = UiButton::new_pipeline(renderer);
+    self.pipelines.push(btn_pipe);
+
+    let btn1 = UiButton::new(renderer, &btn_pipe, vec2f!(120.0, 50.0))
+      .at(vec3f!(-200.0, -200.0, 0.0))
+      .with_text(renderer, "Hello".to_owned(), 28.0, RColor::BLACK)
+      .with_colors(RColor::rgb(0x8f, 0x8f, 0xaf), RColor::rgb(0xad, 0xad, 0xdd));
+    self.ui.push(UiComponent::Button(btn1));
+
+    let btn2 = UiButton::new(renderer, &btn_pipe, vec2f!(120.0, 50.0))
+      .at(vec3f!(200.0, -200.0, 0.0))
+      .with_text(renderer, "World".to_owned(), 28.0, RColor::WHITE)
+      .with_colors(RColor::rgb(0x1a, 0x1a, 0x3f), RColor::rgb(0x2d, 0x2d, 0x8d));
+    self.ui.push(UiComponent::Button(btn2));
   }
   fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {
     renderer.resize_texture(self.textures[0], self.objects[0], width, height);
@@ -61,6 +82,15 @@ impl AppBase for App {
     renderer.update_object(self.objects[1], RObjectUpdate::default()
       .with_position(vec3f!(ax, ay, 10.0))
       .with_color(RColor::rgba_pct(mx, my, 1.0 - (mx + my), 1.0)));
+
+    // update ui
+    for cmpt in &mut self.ui {
+      match cmpt {
+        UiComponent::Button(btn) => {
+          btn.update(renderer, None, sys.m_inputs.position, sys.win_size);
+        }
+      }
+    }
 
     // render fps text to inner screen
     if self.time_since_last_fps > Duration::from_millis(800) {
