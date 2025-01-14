@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
 
 pub const PI: f32 = 3.14159265;
 
@@ -646,6 +646,11 @@ impl Vec2 {
   pub fn magnitude(&self) -> f32 {
     f32::sqrt(self.x * self.x + self.y * self.y)
   }
+  pub fn normalize(&self) -> Vec2 {
+    let n = self.magnitude();
+    if n < 0.00001 { return Vec2::new(0.0, 0.0) };
+    Vec2::new(self.x / n, self.y / n)
+  }
   pub fn dot(&self, rhs: Vec2) -> f32 {
     self.x * rhs.x + self.y * rhs.y
   }
@@ -672,6 +677,14 @@ impl SubAssign for Vec2 {
   fn sub_assign(&mut self, rhs: Self) {
     self.x -= rhs.x;
     self.y -= rhs.y;
+  }
+}
+impl Mul<f32> for Vec2 {
+  type Output = Vec2;
+  fn mul(self, rhs: f32) -> Self::Output {
+    let x = self.x * rhs;
+    let y = self.y * rhs;
+    Vec2 { x, y }
   }
 }
 impl Into<[f32; 2]> for Vec2 {

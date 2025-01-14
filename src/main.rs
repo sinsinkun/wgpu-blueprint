@@ -17,8 +17,8 @@ mod math;
 use math::{Vec2, Vec3};
 mod renderer;
 use renderer::{RPipelineId, Renderer};
-mod app2;
-use app2::App;
+mod app3;
+use app3::App;
 mod ui;
 
 const RENDER_FPS_LOCK: Duration = Duration::from_millis(1);
