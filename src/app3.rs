@@ -44,9 +44,10 @@ impl App {
     let origin = vec2f!(sys.win_size.x / 2.0, sys.win_size.y / 2.0);
     let mouse_position = sys.m_inputs.position - origin;
     let mut pos = self.circles[0].pos;
-    pos += (mouse_position - pos).normalize() * 60.0;
-    let vel = vec2f!(0.0, 0.0);
-    self.init_cir(renderer, 60.0, RColor::RED, pos, vel);
+    let delta = (mouse_position - pos).normalize();
+    pos += delta * 20.0;
+    let vel = delta * 10.0;
+    self.init_cir(renderer, 20.0, RColor::RED, pos, vel);
   }
   fn render_cir(&self, renderer: &mut Renderer) {
     for cir in &self.circles {
@@ -65,10 +66,10 @@ impl AppBase for App {
       ..Default::default()
     });
     self.pipe = pipe;
-    self.init_cir(renderer, 60.0, RColor::RED, vec2f!(-100.0, -100.0), vec2f!(40.0, 40.0));
-    self.init_cir(renderer, 50.0, RColor::BLUE, vec2f!(100.0, 100.0), vec2f!(0.0, 0.0));
-    self.init_cir(renderer, 50.0, RColor::BLUE, vec2f!(-100.0, 100.0), vec2f!(0.0, 0.0));
-    self.init_cir(renderer, 50.0, RColor::BLUE, vec2f!(100.0, -100.0), vec2f!(0.0, 0.0));
+    self.init_cir(renderer, 20.0, RColor::RED, vec2f!(-100.0, -100.0), vec2f!(40.0, 40.0));
+    self.init_cir(renderer, 30.0, RColor::BLUE, vec2f!(100.0, 100.0), vec2f!(0.0, 20.0));
+    self.init_cir(renderer, 30.0, RColor::BLUE, vec2f!(-100.0, 100.0), vec2f!(-40.0, 0.0));
+    self.init_cir(renderer, 30.0, RColor::BLUE, vec2f!(100.0, -100.0), vec2f!(20.0, -20.0));
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // spawn new cirs
@@ -79,10 +80,10 @@ impl AppBase for App {
     }
     // mouse influence
     for cir in &mut self.circles {
-      if cir.color == RColor::RED {
+      if cir.color == RColor::RED && sys.m_inputs.left == MKBState::Down {
         let origin = vec2f!(sys.win_size.x / 2.0, sys.win_size.y / 2.0);
         let mouse_position = sys.m_inputs.position - origin;
-        cir.velocity += (mouse_position - cir.pos).normalize();
+        cir.velocity += (mouse_position - cir.pos).normalize() * 0.1;
       }
     }
     // collisions
@@ -107,12 +108,8 @@ fn update_cir(cir1: &mut Circle, cir2: &mut Circle, sys: &SystemInfo) {
   if distance.magnitude() < cir1.radius + cir2.radius {
     let new_magnitude = cir1.velocity.magnitude() + cir2.velocity.magnitude();
     let new_dir = (cir2.pos - cir1.pos).normalize();
-    if cir1.color == cir2.color {
-      cir1.velocity += new_dir * 1.0 * new_magnitude;
-      cir2.velocity += new_dir * -1.0 * new_magnitude;
-    }
-    cir1.velocity += new_dir * -1.2 * new_magnitude;
-    cir2.velocity += new_dir * 1.2 * new_magnitude;
+    cir1.velocity += new_dir * -0.9 * new_magnitude;
+    cir2.velocity += new_dir * 0.9 * new_magnitude;
   }
   // bounce on walls
   let origin = vec2f!(sys.win_size.x / 2.0, sys.win_size.y / 2.0);
