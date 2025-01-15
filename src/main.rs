@@ -16,7 +16,7 @@ use wgpu::SurfaceError;
 mod math;
 use math::{Vec2, Vec3};
 mod renderer;
-use renderer::{RPipelineId, Renderer};
+use renderer::{RCamera, RPipelineId, Renderer};
 mod app3;
 use app3::App;
 mod ui;
@@ -62,6 +62,30 @@ pub struct SystemInfo<'a> {
   m_inputs: &'a MouseState,
   frame_delta: &'a Duration,
   win_size: Vec2,
+}
+#[allow(dead_code)]
+impl SystemInfo<'_> {
+	fn time_delta(&self) -> f32 {
+		self.frame_delta.as_secs_f32()
+	}
+	fn win_center(&self) -> Vec2 {
+		let x = self.win_size.x / 2.0;
+		let y = self.win_size.y / 2.0;
+		vec2f!(x, y)
+	}
+	fn m_pos_world_space_2d(&self, cam: Option<&RCamera>) -> Vec2 {
+		let c = self.win_center();
+		let mut x = self.m_inputs.position.x - c.x;
+		let mut y = self.m_inputs.position.y - c.y;
+		if let Some(cm) = cam {
+			x += cm.position.x;
+			y += cm.position.y;
+		}
+		vec2f!(x, y)
+	}
+	// fn m_pos_world_space_3d(&self, cam: Option<RCamera>) -> Vec3 {
+	// 	todo!()
+	// }
 }
 
 #[allow(unused_variables)]

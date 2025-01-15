@@ -78,7 +78,7 @@ impl AppBase for App {
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     let origin = sys.win_size * 0.5;
-    let mouse_pos = sys.m_inputs.position - origin;
+    let mouse_pos = sys.m_pos_world_space_2d(None);
     // spawn new cirs
     for input in sys.kb_inputs {
       if input.0 == &KeyCode::Space && input.1 == &MKBState::Pressed {
@@ -101,12 +101,12 @@ impl AppBase for App {
         }
       };
     }
-    // finalize velocity + position
+    // other considerations for pos/velocity
     for cir in &mut self.circles {
       // follow mouse
       if cir.color == RED {
-        let mouse_dir = (mouse_pos - cir.pos).normalize();
-        cir.velocity += mouse_dir * 0.1;
+        let mouse_dir = mouse_pos - cir.pos;
+        cir.velocity += mouse_dir * 0.02;
       }
       // wall collisions
       let screen_pos = cir.pos + origin;
@@ -115,11 +115,11 @@ impl AppBase for App {
       if screen_pos.x > sys.win_size.x && cir.velocity.x > 0.0 { cir.velocity.x = -1.0 * cir.velocity.x };
       if screen_pos.y > sys.win_size.y && cir.velocity.y > 0.0 { cir.velocity.y = -1.0 * cir.velocity.y };
       // cap max velocity
-      if cir.velocity.magnitude() > 40.0 {
-        cir.velocity = cir.velocity.normalize() * 40.0;
+      if cir.velocity.magnitude() > 60.0 {
+        cir.velocity = cir.velocity.normalize() * 60.0;
       }
       // finalize position
-      cir.pos += cir.velocity * sys.frame_delta.as_secs_f32();
+      cir.pos += cir.velocity * sys.time_delta();
     }
 
     // draw to screen
@@ -130,19 +130,19 @@ impl AppBase for App {
 
 fn collide_2_cirs(cir1: &mut Circle, cir2: &mut Circle, sys: &SystemInfo) {
   let pos_delta = cir1.pos - cir2.pos;
-  let desired_distance = cir1.radius + cir2.radius;
-  let new_magnitude = 5.0 * cir1.velocity.magnitude() + cir2.velocity.magnitude();
+  let min_distance = cir1.radius + cir2.radius;
+  let new_magnitude = cir1.velocity.magnitude() + cir2.velocity.magnitude();
   let new_dir = (cir2.pos - cir1.pos).normalize();
   // controlled circles
-  if pos_delta.magnitude() < desired_distance && cir1.color == RED && cir2.color == RED {
-    cir1.pos += sys.frame_delta.as_secs_f32() * pos_delta;
-    cir2.pos += sys.frame_delta.as_secs_f32() * -1.0 * pos_delta;
+  if pos_delta.magnitude() < min_distance && cir1.color == RED && cir2.color == RED {
+    cir1.pos += sys.time_delta() * pos_delta;
+    cir2.pos += sys.time_delta() * -1.0 * pos_delta;
     cir1.velocity += new_dir * -0.2 * new_magnitude;
-    cir2.velocity += new_dir * 0.2 * new_magnitude;
+    cir2.velocity += new_dir *  0.2 * new_magnitude;
   }
   // regular collisions
-  else if pos_delta.magnitude() < desired_distance {
-    cir1.velocity += new_dir * -0.9 * new_magnitude;
-    cir2.velocity += new_dir * 0.9 * new_magnitude;
+  else if pos_delta.magnitude() < min_distance {
+    cir1.velocity += new_dir * -0.5 * new_magnitude;
+    cir2.velocity += new_dir *  0.5 * new_magnitude;
   }
 }
