@@ -56,7 +56,7 @@ impl App {
     let mouse_position = sys.m_inputs.position - origin;
     let delta = (mouse_position - pos).normalize();
     let n_pos = pos + delta * 20.0;
-    let vel = delta * 10.0;
+    let vel = vec2f!(0.0, 0.0);
     self.create_cir(renderer, 20.0, RED, n_pos, vel);
   }
   fn render_cir(&self, renderer: &mut Renderer) {
@@ -91,11 +91,11 @@ impl AppBase for App {
         }
       }
     }
-    // update logic
+    // follow mouse
     for cir in &mut self.circles {
       if cir.color == RED {
         let mouse_dir = (mouse_pos - cir.pos).normalize();
-        cir.velocity += mouse_dir * 0.05;
+        cir.velocity += mouse_dir * 0.1;
       }
     }
     // collisions
@@ -104,9 +104,24 @@ impl AppBase for App {
       let (a, b) = self.circles.split_at_mut(i);
       if let Some(cir1) = a.last_mut() {
         for cir2 in b {
-          update_cir(cir1, cir2, &sys);
+          collide_2_cirs(cir1, cir2, &sys);
         }
       };
+    }
+    // wall collisions
+    for cir in &mut self.circles {
+      let screen_pos = cir.pos + origin;
+      if screen_pos.x < 0.0 && cir.velocity.x < 0.0 { cir.velocity.x = -1.0 * cir.velocity.x };
+      if screen_pos.y < 0.0 && cir.velocity.y < 0.0 { cir.velocity.y = -1.0 * cir.velocity.y };
+      if screen_pos.x > sys.win_size.x && cir.velocity.x > 0.0 { cir.velocity.x = -1.0 * cir.velocity.x };
+      if screen_pos.y > sys.win_size.y && cir.velocity.y > 0.0 { cir.velocity.y = -1.0 * cir.velocity.y };
+    }
+    // cap speed + finalize position
+    for cir in &mut self.circles {
+      if cir.velocity.magnitude() > 40.0 {
+        cir.velocity = cir.velocity.normalize() * 40.0;
+      }
+      cir.pos += cir.velocity * sys.frame_delta.as_secs_f32();
     }
 
     // draw to screen
@@ -115,46 +130,21 @@ impl AppBase for App {
   }
 }
 
-fn update_cir(cir1: &mut Circle, cir2: &mut Circle, sys: &SystemInfo) {
+fn collide_2_cirs(cir1: &mut Circle, cir2: &mut Circle, sys: &SystemInfo) {
   let pos_delta = cir1.pos - cir2.pos;
   let desired_distance = cir1.radius + cir2.radius;
   let new_magnitude = cir1.velocity.magnitude() + cir2.velocity.magnitude();
   let new_dir = (cir2.pos - cir1.pos).normalize();
+  // controlled circles
   if pos_delta.magnitude() < desired_distance && cir1.color == RED && cir2.color == RED {
     cir1.pos += sys.frame_delta.as_secs_f32() * 2.0 * pos_delta;
     cir2.pos += sys.frame_delta.as_secs_f32() * -2.0 * pos_delta;
-    cir1.velocity += new_dir * -0.1;
-    cir2.velocity += new_dir * 0.1;
-    if cir1.velocity.magnitude() > 10.0 {
-      cir1.velocity = cir1.velocity.normalize() * 10.0;
-    }
-    if cir2.velocity.magnitude() > 10.0 {
-      cir2.velocity = cir2.velocity.normalize() * 10.0;
-    }
-  } else if pos_delta.magnitude() < desired_distance {
+    cir1.velocity += new_dir * -0.5;
+    cir2.velocity += new_dir * 0.5;
+  }
+  // regular collisions
+  else if pos_delta.magnitude() < desired_distance {
     cir1.velocity += new_dir * -0.9 * new_magnitude;
     cir2.velocity += new_dir * 0.9 * new_magnitude;
   }
-  // bounce on walls
-  let origin = vec2f!(sys.win_size.x / 2.0, sys.win_size.y / 2.0);
-  let screen_pos1 = cir1.pos + origin;
-  if screen_pos1.x < 0.0 || screen_pos1.x > sys.win_size.x || screen_pos1.y < 0.0 || screen_pos1.y > sys.win_size.y {
-    cir1.velocity = cir1.velocity * -0.9;
-    cir1.pos += cir1.velocity * 2.0 * sys.frame_delta.as_secs_f32();
-  }
-  let screen_pos2 = cir2.pos + origin;
-  if screen_pos2.x < 0.0 || screen_pos2.x > sys.win_size.x || screen_pos2.y < 0.0 || screen_pos2.y > sys.win_size.y {
-    cir2.velocity = cir2.velocity * -0.9;
-    cir2.pos += cir2.velocity * 2.0 * sys.frame_delta.as_secs_f32();
-  }
-  // cap velocity
-  if cir1.velocity.magnitude() > 40.0 {
-    cir1.velocity = cir1.velocity.normalize() * 40.0;
-  }
-  if cir2.velocity.magnitude() > 40.0 {
-    cir2.velocity = cir2.velocity.normalize() * 40.0;
-  }
-  // finalize position
-  cir1.pos += cir1.velocity * sys.frame_delta.as_secs_f32();
-  cir2.pos += cir2.velocity * sys.frame_delta.as_secs_f32();
 }
