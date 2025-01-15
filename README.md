@@ -11,6 +11,9 @@ limited to 64 bytes, but can be expanded upon later.
 IME and international language rendering is implemented, but needs improvement
 for usability.
 
+Currently still a testing ground for features, but considering packaging up as
+a generalized crate that can be used as an actual library.
+
 ## How to use
 
 - Create app_name.rs
