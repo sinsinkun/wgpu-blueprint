@@ -83,9 +83,13 @@ impl SystemInfo<'_> {
 		}
 		vec2f!(x, y)
 	}
-	// fn m_pos_world_space_3d(&self, cam: Option<RCamera>) -> Vec3 {
-	// 	todo!()
-	// }
+	fn m_pos_world_space_3d(&self, cam: RCamera) -> Vec3 {
+		let c = self.win_center();
+		let x = self.m_inputs.position.x - c.x + cam.position.x;
+		let y = self.m_inputs.position.y - c.y + cam.position.y;
+		let z = cam.position.z;
+		vec3f!(x, y, z)
+	}
 }
 
 #[allow(unused_variables)]
@@ -149,7 +153,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			.with_min_inner_size(PhysicalSize::new(400.0, 300.0))
 			.with_inner_size(PhysicalSize::new(DEFAULT_SIZE.0, DEFAULT_SIZE.1))
 			.with_window_icon(icon)
-			.with_title("CXGui");
+			.with_title("Wgpu Blueprint");
 		match event_loop.create_window(window_attributes) {
 			Ok(win) => {
 				let window_handle = Arc::new(win);
