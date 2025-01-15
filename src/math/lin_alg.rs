@@ -687,6 +687,14 @@ impl Mul<f32> for Vec2 {
     Vec2 { x, y }
   }
 }
+impl Mul<Vec2> for f32 {
+  type Output = Vec2;
+  fn mul(self, rhs: Vec2) -> Self::Output {
+    let x = self * rhs.x;
+    let y = self * rhs.y;
+    Vec2 { x, y }
+  }
+}
 impl Into<[f32; 2]> for Vec2 {
   fn into(self) -> [f32; 2] {
     [self.x, self.y]
