@@ -16,8 +16,8 @@ pub struct App {
   time_since_last_fps: Duration,
   zoom: f32,
 }
-impl Default for App {
-  fn default() -> Self {
+impl AppBase for App {
+  fn new() -> Self {
     Self {
       pipelines: Vec::new(),
       textures: Vec::new(),
@@ -29,8 +29,6 @@ impl Default for App {
       zoom: 1.0,
     }
   }
-}
-impl AppBase for App {
   fn init(&mut self, sys: SystemInfo, renderer: &mut Renderer) {
     self.camera_3d = RCamera::new_persp(90.0, 0.1, 1000.0);
     self.camera_overlay = RCamera::new_ortho(0.0, 1000.0);
@@ -56,7 +54,7 @@ impl AppBase for App {
     let h = height as f32;
     let w = h * 4.0 / 3.0;
     self.camera_overlay.target_size = Some(vec2f!(w, h));
-    renderer.resize_texture(self.textures[0], Some(self.objects[0]), width, height);
+    renderer.resize_texture(self.textures[0], self.objects[0], width, height);
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // process inputs
@@ -94,7 +92,7 @@ impl AppBase for App {
       .with_color(RColor::rgba_pct(0.2, my, mx, 1.0))
       .with_round_border(vec2f!(200.0, 100.0), 20.0));
     for i in 0..50 {
-      self.buttons[i].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position, sys.win_size);
+      self.buttons[i].update(renderer, Some(&self.camera_overlay), sys.m_inputs.position, sys.win_size, true);
     }
 
     renderer.render_on_texture(&self.pipelines[1..4], self.textures[0], Some([0.02, 0.02, 0.06, 1.0]));

@@ -23,6 +23,10 @@ pub struct AppName {
   // app state
 }
 impl AppBase for AppName {
+  fn new() -> Self {
+    // start up winit app
+    // define initial all state
+  }
   fn init(&mut self, sys: SystemInfo, renderer: &mut Renderer) {
     // initialization of state
     // initialize render pipelines

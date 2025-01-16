@@ -18,14 +18,6 @@ pub struct App {
   pipe: RPipelineId,
   circles: Vec<Circle>,
 }
-impl Default for App {
-  fn default() -> Self {
-    Self {
-      pipe: RPipelineId(0),
-      circles: Vec::new(),
-    }
-  }
-}
 impl App {
   fn create_pipe(&mut self, renderer: &mut Renderer) {
     renderer.set_clear_color(RColor::hsv(0.65, 0.4, 0.02));
@@ -69,6 +61,12 @@ impl App {
   }
 }
 impl AppBase for App {
+  fn new() -> Self {
+    Self {
+      pipe: RPipelineId(0),
+      circles: Vec::new(),
+    }
+  }
   fn init(&mut self, _sys: SystemInfo, renderer: &mut Renderer) {
     self.create_pipe(renderer);
     self.create_cir(renderer, 20.0, RED, vec2f!(-100.0, -100.0), vec2f!(0.0, 0.0));

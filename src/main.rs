@@ -17,8 +17,8 @@ mod math;
 use math::{Vec2, Vec3};
 mod renderer;
 use renderer::{RCamera, RPipelineId, Renderer};
-mod app3;
-use app3::App;
+mod app;
+use app::App;
 mod ui;
 
 const RENDER_FPS_LOCK: Duration = Duration::from_millis(1);
@@ -94,6 +94,8 @@ impl SystemInfo<'_> {
 
 #[allow(unused_variables)]
 pub trait AppBase {
+	/// create initial app state
+	fn new() -> Self where Self: Sized;
 	/// actions to take on initialization
 	/// - prepare render pipelines
 	/// - instantialize data objects
@@ -398,7 +400,7 @@ impl<T: AppBase> WinitApp<'_, T> {
 fn main() {
   let event_loop = EventLoop::new().unwrap();
 	event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now()));
-	let mut winit_app = WinitApp::new(App::default());
+	let mut winit_app = WinitApp::new(App::new());
 	let _ = event_loop.run_app(&mut winit_app);
 	winit_app.cleanup();
 }

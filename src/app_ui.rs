@@ -12,17 +12,6 @@ pub struct App {
   ui: Vec<UiComponent>,
   time_since_last_fps: Duration,
 }
-impl Default for App {
-  fn default() -> Self {
-    Self {
-      pipelines: Vec::new(),
-      textures: Vec::new(),
-      objects:  Vec::new(),
-      ui: Vec::new(),
-      time_since_last_fps: Duration::from_secs(1),
-    }
-  }
-}
 impl App {
   fn init_overlay(&mut self, renderer: &mut Renderer) {
     let (pid, oid, tid) = renderer.add_overlay_pipe();
@@ -47,6 +36,15 @@ impl App {
   }
 }
 impl AppBase for App {
+  fn new() -> Self {
+    Self {
+      pipelines: Vec::new(),
+      textures: Vec::new(),
+      objects:  Vec::new(),
+      ui: Vec::new(),
+      time_since_last_fps: Duration::from_secs(1),
+    }
+  }
   fn init(&mut self, _sys: SystemInfo, renderer: &mut Renderer) {
     renderer.set_clear_color(RColor::hsv(0.65, 0.4, 0.02));
     self.init_overlay(renderer);
