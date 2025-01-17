@@ -17,6 +17,7 @@ struct Rectangle {
   color: RColor,
   pos: Vec2,
   size: Vec2,
+  rotation: Option<f32>,
 }
 
 #[derive(Debug)]
@@ -49,7 +50,7 @@ impl App {
       radius,
     });
   }
-  fn init_rect(&mut self, renderer: &mut Renderer, size: Vec2, color: RColor, pos: Vec2) {
+  fn init_rect(&mut self, renderer: &mut Renderer, size: Vec2, color: RColor, pos: Vec2, rot: Option<f32>) {
     let model = Primitives::rect(size.x, size.y, 0.0);
     let obj = renderer.add_object(RObjectSetup {
       pipeline_id: self.obj_pipe,
@@ -60,7 +61,8 @@ impl App {
       obj_id: obj,
       color,
       pos,
-      size
+      size,
+      rotation: rot,
     });
   }
   fn init_p_cir(&mut self, renderer: &mut Renderer) {
@@ -104,6 +106,7 @@ impl App {
       renderer.update_object(rect.obj_id, RObjectUpdate::default()
         .with_color(rect.color)
         .with_position(vec3f!(rect.pos.x, rect.pos.y, 0.0))
+        .with_rotation(vec3f!(0.0, 0.0, 1.0), rect.rotation.unwrap_or(0.0))
       );
     }
   }
@@ -150,9 +153,9 @@ impl AppBase for App {
     self.init_cir(renderer, 40.0, RColor::BLUE, vec2f!(-100.0, 200.0));
     self.init_cir(renderer, 40.0, RColor::BLUE, vec2f!(-200.0, 50.0));
     self.init_cir(renderer, 40.0, RColor::BLUE, vec2f!(200.0, -150.0));
-    self.init_rect(renderer, vec2f!(60.0, 80.0), RColor::BLUE, vec2f!(10.0, -20.0));
-    self.init_rect(renderer, vec2f!(40.0, 80.0), RColor::BLUE, vec2f!(-220.0, 150.0));
-    self.init_rect(renderer, vec2f!(80.0, 50.0), RColor::BLUE, vec2f!(300.0, -180.0));
+    self.init_rect(renderer, vec2f!(60.0, 120.0), RColor::BLUE, vec2f!(100.0, 0.0), Some(30.0));
+    self.init_rect(renderer, vec2f!(80.0, 60.0), RColor::BLUE, vec2f!(-220.0, 150.0), Some(45.0));
+    self.init_rect(renderer, vec2f!(80.0, 150.0), RColor::BLUE, vec2f!(-300.0, -180.0), None);
     self.init_p_cir(renderer);
   }
   fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {
@@ -169,7 +172,7 @@ impl AppBase for App {
       if d < signed_dst { signed_dst = d }
     }
     for rect in &self.rects {
-      let d = math::signed_dist_to_rect(p, rect.pos, rect.size, None);
+      let d = math::signed_dist_to_rect(p, rect.pos, rect.size, rect.rotation);
       if d < signed_dst { signed_dst = d }
     }
     self.p_cir.radius = signed_dst;

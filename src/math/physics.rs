@@ -14,19 +14,22 @@ pub fn signed_dist_to_cir(point: Vec2, cir_center: Vec2, cir_radius: f32) -> f32
 pub fn signed_dist_to_rect(
   point: Vec2, rect_center: Vec2, rect_size: Vec2, rect_rotation: Option<f32>
 ) -> f32 {
-  let mut rel = point - rect_center;
-  // rotate rel_vec by -r
-  if let Some(r) = rect_rotation {
-    rel.x = rel.x * f32::cos(-r) - rel.y * f32::sin(-r);
-    rel.y = rel.y * f32::cos(-r) + rel.x * f32::sin(-r);
-  }
-  let dx = f32::max(rel.x - rect_size.x / 2.0, 0.0);
-  let dy = f32::max(rel.y - rect_size.y / 2.0, 0.0);
-  let outer_d = if dx > dy { dx } else { dy };
-  let ix = f32::min(rel.x - rect_size.x / 2.0, 0.0);
-  let iy = f32::min(rel.y - rect_size.y / 2.0, 0.0);
-  let inner_d = if ix > iy { ix } else { iy };
-  outer_d + inner_d
+  let rot_p = if let Some(r) = rect_rotation {
+    let rad = r.to_radians();
+    let x = (point.x - rect_center.x) * f32::cos(-rad) - (point.y - rect_center.y) * f32::sin(-rad) + rect_center.x;
+    let y = (point.y - rect_center.y) * f32::cos(-rad) + (point.x - rect_center.x) * f32::sin(-rad) + rect_center.y;
+    vec2f!(x, y)
+  } else { point };
+  let mut abs_p = rot_p - rect_center;
+  if abs_p.x < 0.0 { abs_p.x = -abs_p.x };
+  if abs_p.y < 0.0 { abs_p.y = -abs_p.y };
+  let d0 = abs_p - rect_size * 0.5;
+  let mut d = d0;
+  if d.x < 0.0 { d.x = 0.0 };
+  if d.y < 0.0 { d.y = 0.0 };
+  let outer = d.magnitude();
+  let inner = f32::min(f32::max(d0.x, d0.y), 0.0);
+  outer + inner
 }
 
 // --- --- --- --- --- --- --- //
