@@ -37,7 +37,7 @@ impl AppBase for App {
       overlay: None,
       sdf_pipe: RPipelineId(0),
       sdfs: Vec::new(),
-      time_since_last_fps: Duration::from_secs(0),
+      time_since_last_fps: Duration::from_secs(1),
     }
   }
   fn resize(&mut self, renderer: &mut Renderer, width: u32, height: u32) {
@@ -50,12 +50,20 @@ impl AppBase for App {
     let p = renderer.add_sdf_pipeline();
     self.sdf_pipe = p;
     
-    let cir = RSDFObject::default();
+    let cir = RSDFObject::circle(vec2f!(400.0, 300.0), 40.0);
+    let rect = RSDFObject::rect(vec2f!(200.0, 400.0), vec2f!(50.0, 80.0), None)
+      .with_corner(20.0);
+    let rect2 = RSDFObject::rect(vec2f!(600.0, 200.0), vec2f!(60.0, 140.0), Some(45.0))
+      .with_corner(20.0);
     self.sdfs.push(cir);
+    self.sdfs.push(rect);
+    self.sdfs.push(rect2);
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // update objects
-    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, &Vec::new());
+    self.sdfs[0].center = sys.m_inputs.position;
+    // upload to pipeline
+    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, &self.sdfs);
 
     // finalize render
     match self.overlay {

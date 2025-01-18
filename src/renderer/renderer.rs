@@ -1115,7 +1115,7 @@ impl<'a> Renderer<'a> {
     // create object data buffer
     let obj_buffer = self.device.create_buffer(&BufferDescriptor {
       label: Some("obj-uniform-buffer"),
-      size: size_of::<RSDFObject>() as u64 * 100,
+      size: min_stride as u64 * 100,
       usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
       mapped_at_creation: false,
     });
@@ -1270,24 +1270,18 @@ impl<'a> Renderer<'a> {
     let pipe = &self.pipelines[pipeline_id.0];
     let robj = &self.objects[pipe.obj_indices[0]];
     
-    let obj_count = if objects.len() < 100 { objects.len() as f32 } else { 100.0 };
-    let sys = [
-      screen_size.x,
-      screen_size.y,
-      m_pos.x,
-      m_pos.y,
+    let obj_count = if objects.len() < 100 { objects.len() as u32 } else { 100 };
+    let sys = SysData {
+      screen: screen_size,
+      mouse_pos: m_pos,
       obj_count,
-    ];
-    // convert objects into Vec<f32>
-    let mut objs: Vec<f32> = Vec::new();
+    };
+    let mut objs: Vec<RSDFObjectC> = Vec::new();
     for o in objects {
-      let v = o.as_f32_vec();
-      for x in v {
-        objs.push(x);
-      }
+      objs.push(RSDFObjectC::from(o));
     }
     // let stride = self.limits.min_uniform_buffer_offset_alignment;
-    self.queue.write_buffer(&robj.buffers0[0], 0, bytemuck::cast_slice(&sys));
+    self.queue.write_buffer(&robj.buffers0[0], 0, bytemuck::cast_slice(&[sys]));
     self.queue.write_buffer(&robj.buffers0[1], 0, bytemuck::cast_slice(&objs.as_slice()));
   }
 }

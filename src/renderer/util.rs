@@ -375,17 +375,26 @@ impl RColor {
   };
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable)]
+pub struct SysData {
+  pub screen: Vec2,
+  pub mouse_pos: Vec2,
+  pub obj_count: u32,
+}
+
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub enum RSDFObjectType {
   #[default]
-  Circle, Rectangle, Triangle
+  Circle, Rectangle, Triangle, RectAngled,
 }
-impl From<RSDFObjectType> for f32 {
+impl From<RSDFObjectType> for u32 {
   fn from(value: RSDFObjectType) -> Self {
     match value {
-      RSDFObjectType::Circle => 1.0,
-      RSDFObjectType::Rectangle => 2.0,
-      RSDFObjectType::Triangle => 3.0,
+      RSDFObjectType::Circle => 1,
+      RSDFObjectType::Rectangle => 2,
+      RSDFObjectType::Triangle => 3,
+      RSDFObjectType::RectAngled => 4,
     }
   }
 }
@@ -414,20 +423,63 @@ impl Default for RSDFObject {
   }
 }
 impl RSDFObject {
-  pub fn as_f32_vec(&self) -> Vec<f32> {
-    vec![
-      self.obj_type.into(),
-      self.center.x,
-      self.center.y,
-      self.radius,
-      self.rect_size.x,
-      self.rect_size.y,
-      self.corner_radius,
-      self.rotation,
-      self.color.r,
-      self.color.g,
-      self.color.b,
-      self.color.a,
-    ]
+  pub fn circle(pos: Vec2, r: f32) -> Self {
+    Self {
+      obj_type: RSDFObjectType::Circle,
+      center: pos,
+      radius: r,
+      ..Default::default()
+    }
+  }
+  pub fn rect(pos: Vec2, size: Vec2, angle: Option<f32>) -> Self {
+    let mut obj_type = RSDFObjectType::Rectangle;
+    let mut rotation = 0.0;
+    if let Some(a) = angle {
+      obj_type = RSDFObjectType::RectAngled;
+      rotation = a.to_radians();
+    }
+    Self {
+      obj_type,
+      rotation,
+      center: pos,
+      rect_size: size,
+      ..Default::default()
+    }
+  }
+  pub fn with_color(mut self, color: RColor) -> Self {
+    self.color = color;
+    self
+  }
+  pub fn with_corner(mut self, radius: f32) -> Self {
+    self.corner_radius = radius;
+    self
+  }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable)]
+pub(crate) struct RSDFObjectC {
+  // note: singular 32 bit values must come in pairs,
+  // and vec3 must be represented as vec4 -
+  // otherwise padding is required
+  pub object_type: u32,
+  pub radius: f32,
+  pub center: [f32; 2],
+  pub rect_size: [f32; 2],
+  pub corner_radius: f32,
+  pub rotation: f32,
+  pub color: [f32; 4],
+}
+impl RSDFObjectC {
+  pub fn from(a: &RSDFObject) -> Self {
+    Self {
+      object_type: a.obj_type.into(),
+      radius: a.radius,
+      center: a.center.as_array(),
+      rect_size: a.rect_size.as_array(),
+      corner_radius: a.corner_radius,
+      rotation: a.rotation,
+      color: a.color.into(),
+    }
   }
 }

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
+use bytemuck::{Pod, Zeroable};
 
 pub const PI: f32 = 3.14159265;
 
@@ -488,7 +489,8 @@ impl Mat4 {
   }
 }
 
-#[derive(Debug, Default, PartialEq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
 pub struct Vec4 {
   pub x: f32,
   pub y: f32,
@@ -554,7 +556,8 @@ impl SubAssign for Vec4 {
   }
 }
 
-#[derive(Debug, Default, PartialEq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
 pub struct Vec3 {
   pub x: f32,
   pub y: f32,
@@ -622,7 +625,8 @@ impl SubAssign for Vec3 {
   }
 }
 
-#[derive(Debug, Default, PartialEq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
 pub struct Vec2 { pub x: f32, pub y: f32 }
 impl Vec2 {
   pub fn new(x: f32, y: f32) -> Self {
