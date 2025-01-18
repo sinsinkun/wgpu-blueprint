@@ -223,11 +223,6 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 					}
 				}
 				match key {
-					PhysicalKey::Code(KeyCode::Escape) => {
-						if state.is_pressed() && !repeat {
-							event_loop.exit();
-						}
-					}
 					PhysicalKey::Code(KeyCode::F1) => {
 						if state.is_pressed() && !repeat {
 							self.hide_cursor = !self.hide_cursor;

@@ -397,6 +397,7 @@ pub struct RSDFObject {
   pub radius: f32,
   pub rect_size: Vec2,
   pub corner_radius: f32,
+  pub rotation: f32,
   pub color: RColor,
 }
 impl Default for RSDFObject {
@@ -407,7 +408,26 @@ impl Default for RSDFObject {
       radius: 10.0,
       rect_size: vec2f!(0.0, 0.0),
       corner_radius: 0.0,
+      rotation: 0.0,
       color: RColor::WHITE,
     }
+  }
+}
+impl RSDFObject {
+  pub fn as_f32_vec(&self) -> Vec<f32> {
+    vec![
+      self.obj_type.into(),
+      self.center.x,
+      self.center.y,
+      self.radius,
+      self.rect_size.x,
+      self.rect_size.y,
+      self.corner_radius,
+      self.rotation,
+      self.color.r,
+      self.color.g,
+      self.color.b,
+      self.color.a,
+    ]
   }
 }

@@ -1075,7 +1075,7 @@ impl<'a> Renderer<'a> {
   // --- --- --- --- --- --- --- --- --- --- //
 
   /// add rectangle to render to for SDF
-  fn add_sdf_render_obj(&mut self, pipe_id: RPipelineId, max_objs: u64) -> RObjectId {
+  fn add_sdf_render_obj(&mut self, pipe_id: RPipelineId) -> RObjectId {
     let pipe = &self.pipelines[pipe_id.0];
     let id = self.objects.len();
     // create rect
@@ -1115,7 +1115,7 @@ impl<'a> Renderer<'a> {
     // create object data buffer
     let obj_buffer = self.device.create_buffer(&BufferDescriptor {
       label: Some("obj-uniform-buffer"),
-      size: min_stride as u64 * max_objs,
+      size: size_of::<RSDFObject>() as u64 * 100,
       usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
       mapped_at_creation: false,
     });
@@ -1158,7 +1158,7 @@ impl<'a> Renderer<'a> {
     RObjectId(id)
   }
   /// generate special pipeline for rendering SDF objects
-  pub fn add_sdf_pipeline(&mut self, max_objs: u64) -> RPipelineId {
+  pub fn add_sdf_pipeline(&mut self) -> RPipelineId {
     let id: usize = self.pipelines.len();
     // build shader module
     let shader_mod = self.device.create_shader_module(ShaderModuleDescriptor {
@@ -1260,7 +1260,7 @@ impl<'a> Renderer<'a> {
     let pipeline_id = RPipelineId(id);
 
     // create screen object
-    let _rect = self.add_sdf_render_obj(pipeline_id, max_objs);
+    let _rect = self.add_sdf_render_obj(pipeline_id);
     pipeline_id
   }
   /// push the finalized position of all SDF objects
@@ -1270,22 +1270,21 @@ impl<'a> Renderer<'a> {
     let pipe = &self.pipelines[pipeline_id.0];
     let robj = &self.objects[pipe.obj_indices[0]];
     
-    let sys = [screen_size.x, screen_size.y, m_pos.x, m_pos.y];
+    let obj_count = if objects.len() < 100 { objects.len() as f32 } else { 100.0 };
+    let sys = [
+      screen_size.x,
+      screen_size.y,
+      m_pos.x,
+      m_pos.y,
+      obj_count,
+    ];
     // convert objects into Vec<f32>
     let mut objs: Vec<f32> = Vec::new();
     for o in objects {
-      objs.push(o.obj_type.into());
-      objs.push(o.center.x);
-      objs.push(o.center.y);
-      objs.push(o.radius);
-      objs.push(o.rect_size.x);
-      objs.push(o.rect_size.y);
-      objs.push(o.corner_radius);
-      // padding
-      objs.push(0.0);
-      objs.push(0.0);
-      objs.push(0.0);
-      objs.push(0.0);
+      let v = o.as_f32_vec();
+      for x in v {
+        objs.push(x);
+      }
     }
     // let stride = self.limits.min_uniform_buffer_offset_alignment;
     self.queue.write_buffer(&robj.buffers0[0], 0, bytemuck::cast_slice(&sys));

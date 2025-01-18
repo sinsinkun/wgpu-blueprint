@@ -47,7 +47,7 @@ impl AppBase for App {
   }
   fn init(&mut self, _sys: SystemInfo, renderer: &mut Renderer) {
     self.init_overlay(renderer);
-    let p = renderer.add_sdf_pipeline(100);
+    let p = renderer.add_sdf_pipeline();
     self.sdf_pipe = p;
     
     let cir = RSDFObject::default();
