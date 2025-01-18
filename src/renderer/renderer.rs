@@ -797,7 +797,7 @@ impl<'a> Renderer<'a> {
     self.objects.push(obj);
     self.pipelines[setup.pipeline_id.0].obj_indices.push(id);
     let object_id = RObjectId(id);
-    // self.update_object(RObjectUpdate{ object_id, ..Default::default() });
+    self.update_object(object_id, RObjectUpdate{ ..Default::default() });
     object_id
   }
   /// part of update_object process
@@ -1068,5 +1068,227 @@ impl<'a> Renderer<'a> {
         println!("Error while drawing str: \"{}\" - {:?}", input, e);
       }
     };
+  }
+
+  // --- --- --- --- --- --- --- --- --- --- //
+  // --- --- --- -- -- SDF -- -- --- --- --- //
+  // --- --- --- --- --- --- --- --- --- --- //
+
+  /// add rectangle to render to for SDF
+  fn add_sdf_render_obj(&mut self, pipe_id: RPipelineId, max_objs: u64) -> RObjectId {
+    let pipe = &self.pipelines[pipe_id.0];
+    let id = self.objects.len();
+    // create rect
+    let (rect_data, rect_i) = Primitives::rect_indexed(2.0, 2.0, 0.0);
+    // create vertex buffer
+    let vlen: usize;
+    let v_buffer: Buffer;
+    vlen = rect_data.len();
+    v_buffer = self.device.create_buffer(&BufferDescriptor {
+      label: Some("vertex-buffer"),
+      size: (std::mem::size_of::<RVertex>() * vlen) as u64,
+      usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+      mapped_at_creation: false
+    });
+    self.queue.write_buffer(&v_buffer, 0, bytemuck::cast_slice(&rect_data));
+
+    // create index buffer
+    let ilen: usize = rect_i.len();
+    let i_buffer = self.device.create_buffer(&BufferDescriptor {
+      label: Some("index-buffer"),
+      size: (std::mem::size_of::<u32>() * ilen) as u64,
+      usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+      mapped_at_creation: false
+    });
+    self.queue.write_buffer(&i_buffer, 0, bytemuck::cast_slice(&rect_i));
+    let index_buffer = Some(i_buffer);
+
+    // build bind group + buffer
+    let min_stride = self.limits.min_uniform_buffer_offset_alignment;
+    // create system data buffer
+    let sys_buffer = self.device.create_buffer(&BufferDescriptor {
+      label: Some("sys-uniform-buffer"),
+      size: min_stride as u64,
+      usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+      mapped_at_creation: false,
+    });
+    // create object data buffer
+    let obj_buffer = self.device.create_buffer(&BufferDescriptor {
+      label: Some("obj-uniform-buffer"),
+      size: min_stride as u64 * max_objs,
+      usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+      mapped_at_creation: false,
+    });
+    let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+      label: Some("bind-group-0"),
+      layout: &pipe.pipe.get_bind_group_layout(0),
+      entries: &[
+        BindGroupEntry {
+          binding: 0,
+          resource: BindingResource::Buffer(BufferBinding {
+            buffer: &sys_buffer, offset: 0, size: None
+          })
+        },
+        BindGroupEntry {
+          binding: 1,
+          resource: BindingResource::Buffer(BufferBinding {
+            buffer: &obj_buffer, offset: 0, size: None
+          })
+        },
+      ]
+    });
+
+    // save to cache
+    let obj = RObject {
+      visible: true,
+      pipe_id,
+      v_buffer,
+      v_count: vlen,
+      index_buffer,
+      index_count: ilen as u32,
+      instances: 1,
+      bind_group0: bind_group,
+      buffers0: vec![sys_buffer, obj_buffer],
+      texture1: None,
+      texture2: None,
+      max_joints: 0,
+    };
+    self.objects.push(obj);
+    self.pipelines[pipe_id.0].obj_indices.push(id);
+    RObjectId(id)
+  }
+  /// generate special pipeline for rendering SDF objects
+  pub fn add_sdf_pipeline(&mut self, max_objs: u64) -> RPipelineId {
+    let id: usize = self.pipelines.len();
+    // build shader module
+    let shader_mod = self.device.create_shader_module(ShaderModuleDescriptor {
+      label: Some("shader-module"),
+      source: ShaderSource::Wgsl(include_str!("../embed_assets/sdf.wgsl").into()),
+    });
+    // bind_group -> static singular layout
+    let bind_group_layout_0 = self.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+      label: Some("bind-group0-layout"),
+      entries: &[
+        // system data
+        BindGroupLayoutEntry {
+          binding: 0,
+          visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
+          ty: BindingType::Buffer {
+            ty: BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+          },
+          count: None,
+        },
+        // object data
+        BindGroupLayoutEntry {
+          binding: 1,
+          visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
+          ty: BindingType::Buffer {
+            ty: BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+          },
+          count: None,
+        },
+      ]
+    });
+    let pipeline_layout = self.device.create_pipeline_layout(&PipelineLayoutDescriptor {
+      label: Some("pipeline-layout"),
+      bind_group_layouts: &[&bind_group_layout_0],
+      push_constant_ranges: &[]
+    });
+    let vertex_layout = VertexBufferLayout {
+      array_stride: std::mem::size_of::<RVertex>() as BufferAddress,
+      step_mode: VertexStepMode::Vertex,
+      attributes: &vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x3],
+    };
+    // build pipeline
+    let pipeline = self.device.create_render_pipeline(&RenderPipelineDescriptor {
+      label: Some("render-pipeline"),
+      layout: Some(&pipeline_layout),
+      vertex: VertexState {
+        module: &shader_mod,
+        entry_point: Some("vertexMain"),
+        buffers: &[vertex_layout],
+        compilation_options: PipelineCompilationOptions::default(),
+      },
+      fragment: Some(FragmentState{
+        module: &shader_mod,
+        entry_point: Some("fragmentMain"),
+        targets: &[Some(ColorTargetState{
+          format: self.screen_format,
+          blend: Some(BlendState { 
+            color: BlendComponent {
+              operation: BlendOperation::Add,
+              src_factor: BlendFactor::SrcAlpha,
+              dst_factor: BlendFactor::OneMinusSrcAlpha
+            },
+            alpha: BlendComponent {
+              operation: BlendOperation::Add,
+              src_factor: BlendFactor::SrcAlpha,
+              dst_factor: BlendFactor::OneMinusSrcAlpha
+            }
+          }),
+          write_mask: ColorWrites::ALL
+        })],
+        compilation_options: PipelineCompilationOptions::default(),
+      }),
+      multisample: MultisampleState {
+        count: 4,
+        mask: !0,
+        alpha_to_coverage_enabled: true,
+      },
+      depth_stencil: Some(DepthStencilState {
+        format: TextureFormat::Depth24Plus,
+        depth_write_enabled: true,
+        depth_compare: CompareFunction::LessEqual,
+        stencil: StencilState::default(),
+        bias: DepthBiasState::default(),
+      }),
+      primitive: self.build_primitive_state(&RCullMode::None, &RPolyMode::Fill),
+      multiview: None,
+      cache: None,
+    });
+  
+    let pipe = RPipeline {
+      pipe: pipeline,
+      obj_indices: Vec::new(),
+      has_animations: false,
+    };
+    self.pipelines.push(pipe);
+    let pipeline_id = RPipelineId(id);
+
+    // create screen object
+    let _rect = self.add_sdf_render_obj(pipeline_id, max_objs);
+    pipeline_id
+  }
+  /// push the finalized position of all SDF objects
+  pub fn update_sdf_objects(
+    &mut self, pipeline_id: RPipelineId, screen_size: Vec2, m_pos: Vec2, objects: &Vec<RSDFObject>
+  ) {
+    let pipe = &self.pipelines[pipeline_id.0];
+    let robj = &self.objects[pipe.obj_indices[0]];
+    
+    let sys = [screen_size.x, screen_size.y, m_pos.x, m_pos.y];
+    // convert objects into Vec<f32>
+    let mut objs: Vec<f32> = Vec::new();
+    for o in objects {
+      objs.push(o.obj_type.into());
+      objs.push(o.center.x);
+      objs.push(o.center.y);
+      objs.push(o.radius);
+      objs.push(o.rect_size.x);
+      objs.push(o.rect_size.y);
+      objs.push(o.corner_radius);
+      // padding
+      objs.push(0.0);
+      objs.push(0.0);
+      objs.push(0.0);
+      objs.push(0.0);
+    }
+    // let stride = self.limits.min_uniform_buffer_offset_alignment;
+    self.queue.write_buffer(&robj.buffers0[0], 0, bytemuck::cast_slice(&sys));
+    self.queue.write_buffer(&robj.buffers0[1], 0, bytemuck::cast_slice(&objs.as_slice()));
   }
 }

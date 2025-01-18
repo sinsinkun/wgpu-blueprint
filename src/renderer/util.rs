@@ -6,7 +6,7 @@ use bytemuck::{Pod, Zeroable};
 use ab_glyph::Rect;
 
 use super::*;
-use crate::vec3f;
+use crate::{vec2f, vec3f};
 
 // helper for defining camera/view matrix
 #[derive(Debug, Clone)]
@@ -373,4 +373,41 @@ impl RColor {
   pub const PURPLE: Self = Self {
     r: 0.5, g: 0.0, b: 1.0, a: 1.0,
   };
+}
+
+#[derive(Debug, Default, PartialEq, Clone, Copy)]
+pub enum RSDFObjectType {
+  #[default]
+  Circle, Rectangle, Triangle
+}
+impl From<RSDFObjectType> for f32 {
+  fn from(value: RSDFObjectType) -> Self {
+    match value {
+      RSDFObjectType::Circle => 1.0,
+      RSDFObjectType::Rectangle => 2.0,
+      RSDFObjectType::Triangle => 3.0,
+    }
+  }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct RSDFObject {
+  pub obj_type: RSDFObjectType,
+  pub center: Vec2,
+  pub radius: f32,
+  pub rect_size: Vec2,
+  pub corner_radius: f32,
+  pub color: RColor,
+}
+impl Default for RSDFObject {
+  fn default() -> Self {
+    Self {
+      obj_type: RSDFObjectType::Circle,
+      center: vec2f!(0.0, 0.0),
+      radius: 10.0,
+      rect_size: vec2f!(0.0, 0.0),
+      corner_radius: 0.0,
+      color: RColor::WHITE,
+    }
+  }
 }
