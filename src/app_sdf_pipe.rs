@@ -55,13 +55,13 @@ impl AppBase for App {
       .with_corner(20.0).with_color(RColor::BLUE);
     let rect2 = RSDFObject::rect(vec2f!(350.0, 200.0), vec2f!(60.0, 140.0), Some(45.0))
       .with_corner(20.0).with_color(RColor::GREEN);
-    self.sdfs.push(cir);
     self.sdfs.push(rect);
     self.sdfs.push(rect2);
+    self.sdfs.push(cir);
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // update objects
-    self.sdfs[0].center = sys.m_inputs.position;
+    self.sdfs[2].center = sys.m_inputs.position;
 
     // finalize render
     renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, &self.sdfs);

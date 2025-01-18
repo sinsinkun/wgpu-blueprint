@@ -76,10 +76,12 @@ fn vertexMain(input: VertIn) -> VertOut {
 fn fragmentMain(input: VertOut) -> @location(0) vec4f {
   // work in screen space
   let p = input.pos.xy;
-  // define shapes
-  var fsd = 1000.0;
+  // define vars
   var merge_sd = 0.0;
   let merge_dist = 20.0;
+  let bg = vec4f(0.02, 0.02, 0.05, 1.0);
+  var fg = vec4f(0.0);
+  // calculate
   for (var i: u32 = 0; i < sys_data.oc; i++) {
     let obj: ObjData = obj_data[i];
     var d = 1000.0;
@@ -93,14 +95,12 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
     if (obj.cr > 0.0) {
       d = opRound(d, obj.cr);
     }
-    fsd = min(fsd, d);
     let sq = min(d - merge_dist, 0.0) * min(d - merge_dist, 0.0);
+    fg = mix(fg, obj.color, smoothstep(20.0, 0.0, d));
     merge_sd = merge_sd + sq;
   }
   let merge_fsd = sqrt(merge_sd) - merge_dist;
 
   // output
-  let bg = vec4f(0.02, 0.02, 0.05, 1.0);
-  let fg = vec4f(0.2, 0.5, 0.05, 1.0);
   return mix(bg, fg, smoothstep(0.0, 1.0, merge_fsd));
 }
