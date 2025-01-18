@@ -50,11 +50,11 @@ impl AppBase for App {
     let p = renderer.add_sdf_pipeline();
     self.sdf_pipe = p;
     
-    let cir = RSDFObject::circle(vec2f!(400.0, 300.0), 40.0);
+    let cir = RSDFObject::circle(vec2f!(400.0, 300.0), 40.0).with_color(RColor::RED);
     let rect = RSDFObject::rect(vec2f!(200.0, 400.0), vec2f!(50.0, 80.0), None)
-      .with_corner(20.0);
-    let rect2 = RSDFObject::rect(vec2f!(600.0, 200.0), vec2f!(60.0, 140.0), Some(45.0))
-      .with_corner(20.0);
+      .with_corner(20.0).with_color(RColor::BLUE);
+    let rect2 = RSDFObject::rect(vec2f!(350.0, 200.0), vec2f!(60.0, 140.0), Some(45.0))
+      .with_corner(20.0).with_color(RColor::GREEN);
     self.sdfs.push(cir);
     self.sdfs.push(rect);
     self.sdfs.push(rect2);
@@ -62,10 +62,9 @@ impl AppBase for App {
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // update objects
     self.sdfs[0].center = sys.m_inputs.position;
-    // upload to pipeline
-    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, &self.sdfs);
 
     // finalize render
+    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, &self.sdfs);
     match self.overlay {
       Some((p,_,_)) => {
         self.update_overlay(sys, renderer);
