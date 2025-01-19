@@ -50,21 +50,24 @@ impl AppBase for App {
     let p = renderer.add_sdf_pipeline();
     self.sdf_pipe = p;
     
-    let cir = RSDFObject::circle(vec2f!(460.0, 300.0), 60.0).with_color(RColor::RED);
+    let cir = RSDFObject::circle(vec2f!(380.0, 300.0), 60.0).with_color(RColor::RED);
     let rect = RSDFObject::rect(vec2f!(200.0, 400.0), vec2f!(50.0, 80.0), None)
       .with_corner(20.0).with_color(RColor::BLUE);
     let rect2 = RSDFObject::rect(vec2f!(350.0, 200.0), vec2f!(60.0, 140.0), Some(45.0))
       .with_corner(20.0).with_color(RColor::GREEN).as_line(2.0);
-    let cir2 = RSDFObject::circle(vec2f!(400.0, 300.0), 50.0)
-      .with_color(RColor::rgba(0xff, 0xff, 0xff, 0x66));
+    let tri = RSDFObject::triangle(vec2f!(200.0, 150.0), vec2f!(40.0, 120.0), vec2f!(120.0, 120.0))
+      .with_color(RColor::PURPLE);
+    let cir2 = RSDFObject::circle(vec2f!(400.0, 300.0), 30.0)
+      .with_color(RColor::rgba(0x00, 0xdd, 0xff, 0x6f)).as_line(2.0);
     self.sdfs.push(cir);
     self.sdfs.push(rect);
     self.sdfs.push(rect2);
+    self.sdfs.push(tri);
     self.sdfs.push(cir2);
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // update objects
-    self.sdfs[3].center = sys.m_inputs.position;
+    self.sdfs[4].center = sys.m_inputs.position;
 
     // finalize render
     renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, 30.0, &self.sdfs);

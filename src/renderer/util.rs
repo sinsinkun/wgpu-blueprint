@@ -387,14 +387,16 @@ pub struct SysData {
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub enum RSDFObjectType {
   #[default]
-  Circle, Rectangle, RectAngled,
+  None, Circle, Rectangle, Triangle, RectAngled, Pie,
 }
 impl From<RSDFObjectType> for u32 {
   fn from(value: RSDFObjectType) -> Self {
     match value {
       RSDFObjectType::Circle => 1,
       RSDFObjectType::Rectangle => 2,
-      RSDFObjectType::RectAngled => 3,
+      RSDFObjectType::Triangle => 3,
+      RSDFObjectType::RectAngled => 4,
+      _ => 0,
     }
   }
 }
@@ -409,11 +411,12 @@ pub struct RSDFObject {
   pub rotation: f32,
   pub color: RColor,
   pub line_thickness: f32,
+  pub tri_size: (Vec2, Vec2),
 }
 impl Default for RSDFObject {
   fn default() -> Self {
     Self {
-      obj_type: RSDFObjectType::Circle,
+      obj_type: RSDFObjectType::None,
       center: Vec2::zero(),
       radius: 10.0,
       rect_size: Vec2::zero(),
@@ -421,6 +424,7 @@ impl Default for RSDFObject {
       rotation: 0.0,
       color: RColor::WHITE,
       line_thickness: 0.0,
+      tri_size: (Vec2::zero(), Vec2::zero())
     }
   }
 }
@@ -445,6 +449,14 @@ impl RSDFObject {
       rotation,
       center: pos,
       rect_size: size,
+      ..Default::default()
+    }
+  }
+  pub fn triangle(pos: Vec2, rel_p1: Vec2, rel_p2: Vec2) -> Self {
+    Self {
+      obj_type: RSDFObjectType::Triangle,
+      center: pos,
+      tri_size: (rel_p1, rel_p2),
       ..Default::default()
     }
   }
@@ -473,20 +485,28 @@ pub(crate) struct RSDFObjectC {
   pub corner_radius: f32,
   pub rotation: f32,
   pub onion: f32,
-  pub v3: [f32; 3],
+  pub v3: [f32; 2],
+  buffer: f32,
   pub color: [f32; 4],
 }
 impl RSDFObjectC {
   pub fn from(a: &RSDFObject) -> Self {
+    let mut rect_size = a.rect_size.as_array();
+    let mut v3 = Vec2::zero().as_array();
+    if a.obj_type == RSDFObjectType::Triangle {
+      rect_size = a.tri_size.0.as_array();
+      v3 = a.tri_size.1.as_array();
+    }
     Self {
       object_type: a.obj_type.into(),
       radius: a.radius,
       center: a.center.as_array(),
-      rect_size: a.rect_size.as_array(),
+      rect_size,
       corner_radius: a.corner_radius,
       rotation: a.rotation,
       onion: a.line_thickness,
-      v3: Vec3::zero().as_array(),
+      v3,
+      buffer: 0.0,
       color: a.color.into(),
     }
   }

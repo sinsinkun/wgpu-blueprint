@@ -11,13 +11,13 @@ struct SysData {
 struct ObjData {
   obj_type: u32,
   r: f32,
-  pos: vec2f,
+  pos: vec2f, // first quad
   rsize: vec2f,
   cr: f32,
-  rot: f32,
+  rot: f32, // second quad
   onion: f32,
-  v3: vec2f,
-  color: vec4f,
+  v3: vec2f, // third quad
+  color: vec4f, // 4th quad
 }
 
 struct VertIn {
@@ -49,9 +49,22 @@ fn sdBoxAngled(p: vec2f, c: vec2f, b: vec2f, a: f32) -> f32 {
   return sdBox(np, c, b);
 }
 
-fn sdTriangle(p: vec2f, p0: vec2f, p1: vec2f, p2: vec2f) -> f32 {
-  // todo
-  return 0.0;
+fn sdTriangle(p: vec2f, c: vec2f, p0: vec2f, p1: vec2f, p2: vec2f) -> f32 {
+  let np = p - c;
+  let e0 = p1-p0;
+  let e1 = p2-p1;
+  let e2 = p0-p2;
+  let v0 = np-p0;
+  let v1 = np-p1;
+  let v2 = np-p2;
+  let pq0 = v0 - e0*clamp( dot(v0,e0)/dot(e0,e0), 0.0, 1.0 );
+  let pq1 = v1 - e1*clamp( dot(v1,e1)/dot(e1,e1), 0.0, 1.0 );
+  let pq2 = v2 - e2*clamp( dot(v2,e2)/dot(e2,e2), 0.0, 1.0 );
+  let s: f32 = sign( e0.x*e2.y - e0.y*e2.x );
+  let d: vec2f = min(min(vec2(dot(pq0,pq0), s*(v0.x*e0.y-v0.y*e0.x)),
+                    vec2(dot(pq1,pq1), s*(v1.x*e1.y-v1.y*e1.x))),
+                    vec2(dot(pq2,pq2), s*(v2.x*e2.y-v2.y*e2.x)));
+  return -sqrt(d.x)*sign(d.y);
 }
 
 // round corners
@@ -97,8 +110,13 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
       d = sdCircle(p, obj.pos, obj.r);
     } else if (obj.obj_type == 2) { // box
       d = sdBox(p, obj.pos, obj.rsize);
-    } else if (obj.obj_type == 3) { // angledbox
+    } else if (obj.obj_type == 4) { // angledbox
       d = sdBoxAngled(p, obj.pos, obj.rsize, obj.rot);
+    } else if (obj.obj_type == 3) { // triangle
+      let p0 = vec2f(0.0, 0.0);
+      let p1 = obj.rsize;
+      let p2 = obj.v3;
+      d = sdTriangle(p, obj.pos, p0, p1, p2);
     }
     if (obj.cr > 0.0) {
       d = opRound(d, obj.cr);
