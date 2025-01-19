@@ -97,7 +97,7 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
       d = opRound(d, obj.cr);
     }
     let sq = min(d - merge_dist, 0.0) * min(d - merge_dist, 0.0);
-    fg = mix(fg, obj.color, smoothstep(merge_dist, 0.0, d) * 0.8);
+    fg = mix(fg, obj.color, smoothstep(merge_dist, 0.0, d) * obj.color.a);
     merge_sd = merge_sd + sq;
   }
   let merge_fsd = sqrt(merge_sd) - merge_dist;
