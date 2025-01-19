@@ -387,15 +387,14 @@ pub struct SysData {
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub enum RSDFObjectType {
   #[default]
-  Circle, Rectangle, Triangle, RectAngled,
+  Circle, Rectangle, RectAngled,
 }
 impl From<RSDFObjectType> for u32 {
   fn from(value: RSDFObjectType) -> Self {
     match value {
       RSDFObjectType::Circle => 1,
       RSDFObjectType::Rectangle => 2,
-      RSDFObjectType::Triangle => 3,
-      RSDFObjectType::RectAngled => 4,
+      RSDFObjectType::RectAngled => 3,
     }
   }
 }
@@ -409,17 +408,19 @@ pub struct RSDFObject {
   pub corner_radius: f32,
   pub rotation: f32,
   pub color: RColor,
+  pub line_thickness: f32,
 }
 impl Default for RSDFObject {
   fn default() -> Self {
     Self {
       obj_type: RSDFObjectType::Circle,
-      center: vec2f!(0.0, 0.0),
+      center: Vec2::zero(),
       radius: 10.0,
-      rect_size: vec2f!(0.0, 0.0),
+      rect_size: Vec2::zero(),
       corner_radius: 0.0,
       rotation: 0.0,
       color: RColor::WHITE,
+      line_thickness: 0.0,
     }
   }
 }
@@ -455,20 +456,24 @@ impl RSDFObject {
     self.corner_radius = radius;
     self
   }
+  pub fn as_line(mut self, thickness: f32) -> Self {
+    self.line_thickness = thickness;
+    self
+  }
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable)]
 pub(crate) struct RSDFObjectC {
-  // note: singular 32 bit values must come in pairs,
-  // and vec3 must be represented as vec4 -
-  // otherwise padding is required
+  // note: must be representable in sets of 4 32-bit values (vec4f)
   pub object_type: u32,
   pub radius: f32,
   pub center: [f32; 2],
   pub rect_size: [f32; 2],
   pub corner_radius: f32,
   pub rotation: f32,
+  pub onion: f32,
+  pub v3: [f32; 3],
   pub color: [f32; 4],
 }
 impl RSDFObjectC {
@@ -480,6 +485,8 @@ impl RSDFObjectC {
       rect_size: a.rect_size.as_array(),
       corner_radius: a.corner_radius,
       rotation: a.rotation,
+      onion: a.line_thickness,
+      v3: Vec3::zero().as_array(),
       color: a.color.into(),
     }
   }

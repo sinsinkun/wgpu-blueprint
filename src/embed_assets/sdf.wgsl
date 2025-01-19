@@ -15,6 +15,8 @@ struct ObjData {
   rsize: vec2f,
   cr: f32,
   rot: f32,
+  onion: f32,
+  v3: vec2f,
   color: vec4f,
 }
 
@@ -45,6 +47,11 @@ fn sdBoxAngled(p: vec2f, c: vec2f, b: vec2f, a: f32) -> f32 {
   np.x = (p.x - c.x) * cos(-a) - (p.y - c.y) * sin(-a) + c.x;
   np.y = (p.y - c.y) * cos(-a) + (p.x - c.x) * sin(-a) + c.y;
   return sdBox(np, c, b);
+}
+
+fn sdTriangle(p: vec2f, p0: vec2f, p1: vec2f, p2: vec2f) -> f32 {
+  // todo
+  return 0.0;
 }
 
 // round corners
@@ -80,9 +87,9 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
   // define vars
   var merge_sd = 0.0;
   let merge_dist = sys_data.md;
-  let bg = vec4f(0.004, 0.005, 0.008, 1.0);
-  var fg = vec4f(0.0, 0.0, 0.0, 1.0);
-  // calculate
+  let bg = vec4f(0.0);
+  var fg = vec4f(bg.rgb, 1.0);
+  // calculate all object SDFs
   for (var i: u32 = 0; i < sys_data.oc; i++) {
     let obj: ObjData = obj_data[i];
     var d = 1000.0;
@@ -90,11 +97,14 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
       d = sdCircle(p, obj.pos, obj.r);
     } else if (obj.obj_type == 2) { // box
       d = sdBox(p, obj.pos, obj.rsize);
-    } else if (obj.obj_type == 4) { // angledbox
+    } else if (obj.obj_type == 3) { // angledbox
       d = sdBoxAngled(p, obj.pos, obj.rsize, obj.rot);
     }
     if (obj.cr > 0.0) {
       d = opRound(d, obj.cr);
+    }
+    if (obj.onion > 0.0) {
+      d = opOnion(d, obj.onion);
     }
     let sq = min(d - merge_dist, 0.0) * min(d - merge_dist, 0.0);
     fg = mix(fg, obj.color, smoothstep(merge_dist, 0.0, d) * obj.color.a);

@@ -54,8 +54,9 @@ impl AppBase for App {
     let rect = RSDFObject::rect(vec2f!(200.0, 400.0), vec2f!(50.0, 80.0), None)
       .with_corner(20.0).with_color(RColor::BLUE);
     let rect2 = RSDFObject::rect(vec2f!(350.0, 200.0), vec2f!(60.0, 140.0), Some(45.0))
-      .with_corner(20.0).with_color(RColor::GREEN);
-    let cir2 = RSDFObject::circle(vec2f!(400.0, 300.0), 50.0).with_color(RColor::rgba(0xaa, 0x34, 0x86, 0x8f));
+      .with_corner(20.0).with_color(RColor::GREEN).as_line(2.0);
+    let cir2 = RSDFObject::circle(vec2f!(400.0, 300.0), 50.0)
+      .with_color(RColor::rgba(0xff, 0xff, 0xff, 0x66));
     self.sdfs.push(cir);
     self.sdfs.push(rect);
     self.sdfs.push(rect2);

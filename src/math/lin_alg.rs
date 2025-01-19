@@ -567,6 +567,12 @@ impl Vec3 {
   pub fn new(x: f32, y: f32, z: f32) -> Vec3 {
     Self { x, y, z }
   }
+  pub fn zero() -> Self {
+    Self { x:0.0, y:0.0, z:0.0 }
+  }
+  pub fn from_vec2(v: Vec2) -> Self {
+    Self { x: v.x, y: v.y, z: 0.0 }
+  }
   pub fn from_array(arr: [f32; 3]) -> Self {
     Self { x: arr[0], y: arr[1], z: arr[2] }
   }
@@ -631,6 +637,9 @@ pub struct Vec2 { pub x: f32, pub y: f32 }
 impl Vec2 {
   pub fn new(x: f32, y: f32) -> Self {
     Self { x, y }
+  }
+  pub fn zero() -> Self {
+    Self { x: 0.0, y: 0.0 }
   }
   pub fn from_tuple(t: (f32, f32)) -> Self {
     Vec2 {
