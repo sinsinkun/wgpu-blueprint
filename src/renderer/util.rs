@@ -381,6 +381,7 @@ pub struct SysData {
   pub screen: Vec2,
   pub mouse_pos: Vec2,
   pub obj_count: u32,
+  pub merge_dist: f32,
 }
 
 #[derive(Debug, Default, PartialEq, Clone, Copy)]

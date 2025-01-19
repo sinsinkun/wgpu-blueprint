@@ -5,6 +5,7 @@ struct SysData {
   screen: vec2f,
   mp: vec2f,
   oc: u32,
+  md: f32,
 }
 
 struct ObjData {
@@ -78,9 +79,9 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
   let p = input.pos.xy;
   // define vars
   var merge_sd = 0.0;
-  let merge_dist = 20.0;
-  let bg = vec4f(0.02, 0.02, 0.05, 1.0);
-  var fg = vec4f(0.0);
+  let merge_dist = sys_data.md;
+  let bg = vec4f(0.004, 0.005, 0.008, 1.0);
+  var fg = vec4f(0.0, 0.0, 0.0, 1.0);
   // calculate
   for (var i: u32 = 0; i < sys_data.oc; i++) {
     let obj: ObjData = obj_data[i];
@@ -96,7 +97,7 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
       d = opRound(d, obj.cr);
     }
     let sq = min(d - merge_dist, 0.0) * min(d - merge_dist, 0.0);
-    fg = mix(fg, obj.color, smoothstep(20.0, 0.0, d));
+    fg = mix(fg, obj.color, smoothstep(merge_dist, 0.0, d) * 0.8);
     merge_sd = merge_sd + sq;
   }
   let merge_fsd = sqrt(merge_sd) - merge_dist;
