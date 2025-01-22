@@ -4,6 +4,8 @@ use ab_glyph::{Font, FontRef, Glyph, Rect};
 use image::{Rgba, RgbaImage};
 use wgpu::{Extent3d, ImageCopyTexture, ImageDataLayout, Origin3d, Queue, Texture, TextureAspect, TextureFormat};
 
+use crate::vec2f;
+
 use super::{RColor, Vec2};
 
 #[derive(Debug, PartialEq)]
@@ -193,6 +195,17 @@ pub struct StringPlacement {
   pub color: RColor,
   pub base_point: Vec2,
   pub spacing: f32,
+}
+impl Default for StringPlacement {
+  fn default() -> Self {
+    Self {
+      string: String::new(),
+      size: 18.0,
+      color: RColor::WHITE,
+      base_point: vec2f!(0.0, 0.0),
+      spacing: 2.0,
+    }
+  }
 }
 
 fn place_text_on_img(img: &mut RgbaImage, font: &FontRef, sp: &StringPlacement) {

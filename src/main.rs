@@ -17,8 +17,8 @@ mod math;
 use math::{Vec2, Vec3};
 mod renderer;
 use renderer::{RCamera, RPipelineId, Renderer};
-mod app_sdf_pipe;
-use app_sdf_pipe::App;
+mod app_sdf_ui;
+use app_sdf_ui::App;
 mod ui;
 
 const RENDER_FPS_LOCK: Duration = Duration::from_millis(1);

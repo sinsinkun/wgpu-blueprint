@@ -990,7 +990,7 @@ impl<'a> Renderer<'a> {
   /// and draws text to it
   pub fn add_overlay_pipe(&mut self) -> (RPipelineId, RObjectId, RTextureId) {
     // build full screen texture
-    let texture_id = self.add_texture(self.config.width, self.config.height, None, true);
+    let texture_id = self.add_texture(self.config.width, self.config.height, None, false);
     // build render pipeline
     let pipeline_id = self.add_pipeline(RPipelineSetup {
       shader: RShader::Text,
