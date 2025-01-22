@@ -186,6 +186,90 @@ pub fn draw_str_on_texture(
   Ok(())
 }
 
+#[derive(Debug, Clone)]
+pub struct StringPlacement {
+  pub string: String,
+  pub size: f32,
+  pub color: RColor,
+  pub base_point: Vec2,
+  pub spacing: f32,
+}
+
+fn place_text_on_img(img: &mut RgbaImage, font: &FontRef, sp: &StringPlacement) {
+  let mut c_pos: [f32; 2] = sp.base_point.into();
+  for c in sp.string.chars() {
+    let glyph = font.glyph_id(c).with_scale(sp.size);
+    if let Some(ch) = font.outline_glyph(glyph.clone()) {
+      let bounds = ch.px_bounds();
+      let mut x_offset = 0.0;
+      let y_offset = bounds.min.y;
+      // write pixels to image
+      ch.draw(|x, y, c| {
+        if x as f32 > x_offset { x_offset = x as f32; }
+        let absx = c_pos[0] + x as f32;
+        let absy = c_pos[1] + y_offset + y as f32;
+        // skip offscreen chars
+        if absx < 1.0 || absx >= img.width() as f32 { return; }
+        else if absy < 1.0 || absy >= img.height() as f32 { return; }
+        // draw pixel
+        let r = c * sp.color.r * 255.0;
+        let g = c * sp.color.g * 255.0;
+        let b = c * sp.color.b * 255.0;
+        let a = if c > sp.color.a { sp.color.a * 255.0 } else { c * 255.0 };
+        let clr = [r as u8, g as u8, b as u8, a as u8];
+        img.put_pixel(absx as u32, absy as u32, Rgba(clr));
+      });
+      // update position to draw glyph
+      c_pos[0] += x_offset + sp.spacing;
+    } else {
+      let w = font.glyph_bounds(&glyph).width();
+      // handling blank space
+      c_pos[0] += w + sp.spacing;
+    }
+  }
+}
+
+pub(crate) fn draw_full_text_texture(
+  queue: &Queue,
+  texture: &mut Texture,
+  font_data: &Vec<u8>,
+  placements: &Vec<StringPlacement>,
+) -> Result<(), TextError> {
+  // define font
+  let font = FontRef::try_from_slice(font_data).map_err(|_| TextError::FileLoadError)?;
+  // define image buffer
+  let mut img = RgbaImage::new(texture.width(), texture.height());
+
+  // draw text to img per placement
+  for p in placements {
+    place_text_on_img(&mut img, &font, &p);
+  }
+
+  // write img to texture
+  let dimensions = img.dimensions();
+  let img_size = Extent3d { 
+    width: dimensions.0,
+    height: dimensions.1,
+    depth_or_array_layers: 1
+  };
+  queue.write_texture(
+    ImageCopyTexture {
+      texture,
+      mip_level: 0,
+      origin: Origin3d { x:0, y:0, z:0 },
+      aspect: TextureAspect::All,
+    },
+    &img.as_raw(),
+    ImageDataLayout {
+      offset: 0,
+      bytes_per_row: Some(4 * dimensions.0),
+      rows_per_image: Some(dimensions.1),
+    },
+    img_size
+  );
+  Ok(())
+}
+
 #[cfg(test)]
 mod glyph_brush_test {
   use super::*;

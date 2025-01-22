@@ -31,6 +31,7 @@ pub struct Renderer<'a> {
   pub textures: Vec<wgpu::Texture>,
   pub objects: Vec<RObject>,
   font_cache: Vec<Vec<u8>>,
+  str_placements: Vec<StringPlacement>,
 }
 impl<'a> Renderer<'a> {
   // --- --- --- --- --- --- --- --- --- --- //
@@ -137,6 +138,7 @@ impl<'a> Renderer<'a> {
       objects: Vec::new(),
       clear_color: Color { r: 0.002, g: 0.002, b: 0.008, a: 1.0 },
       font_cache,
+      str_placements: Vec::new(),
     }
   }
   /// Destroys surface screen texture and remakes it
@@ -1068,6 +1070,30 @@ impl<'a> Renderer<'a> {
         println!("Error while drawing str: \"{}\" - {:?}", input, e);
       }
     };
+  }
+  /// add text to overlay
+  pub fn queue_overlay_text(&mut self, placement: StringPlacement) {
+    self.str_placements.push(placement);
+  }
+  /// overwrite target texture with string image
+  /// - non-text will be overwritten with transparent pixels
+  pub fn redraw_texture_with_queue(&mut self, mut font_idx: usize, texture_id: RTextureId) {
+    let texture = &mut self.textures[texture_id.base];
+    // fetch font data
+    if self.font_cache.len() <= font_idx { 
+      font_idx = 0;
+    }
+    // draw queue onto existing textures
+    match draw_full_text_texture(
+      &self.queue, texture, &self.font_cache[font_idx], &self.str_placements
+    ) {
+      Ok(()) => (),
+      Err(e) => {
+        println!("Error while drawing str queue - {:?}", e);
+      }
+    }
+    // clear queue
+    self.str_placements.clear();
   }
 
   // --- --- --- --- --- --- --- --- --- --- //
