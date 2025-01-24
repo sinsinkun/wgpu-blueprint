@@ -20,20 +20,21 @@ impl App {
   fn update_overlay(&mut self, sys: SystemInfo, renderer: &mut Renderer) {
     if let Some(overlay) = self.overlay {
       renderer.update_object(overlay.1, RObjectUpdate::default());
-      if self.time_since_last_fps > Duration::from_millis(800) {
+      if self.time_since_last_fps > Duration::from_millis(10) {
         self.time_since_last_fps = Duration::from_nanos(0);
         self.fps_txt = format!("FPS: {:.2}", 1.0 / sys.frame_delta.as_secs_f32());
+        renderer.queue_overlay_text(StringPlacement {
+          string: self.fps_txt.clone(),
+          size: 30.0,
+          color: RColor::rgba(0x34, 0xff, 0x00, 0xff),
+          base_point: vec2f!(5.0, 20.0),
+          spacing: 2.0,
+        });
+        renderer.redraw_texture_with_queue(1, overlay.2);
       } else {
         self.time_since_last_fps += *sys.frame_delta;
+        renderer.clear_overlay_queue();
       }
-      renderer.queue_overlay_text(StringPlacement {
-        string: self.fps_txt.clone(),
-        size: 30.0,
-        color: RColor::rgba(0x34, 0xff, 0x00, 0xff),
-        base_point: vec2f!(5.0, 20.0),
-        spacing: 2.0,
-      });
-      renderer.redraw_texture_with_queue(1, overlay.2);
     }
   }
 }

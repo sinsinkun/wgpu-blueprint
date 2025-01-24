@@ -1075,6 +1075,10 @@ impl<'a> Renderer<'a> {
   pub fn queue_overlay_text(&mut self, placement: StringPlacement) {
     self.str_placements.push(placement);
   }
+  /// clear overlay text queue
+  pub fn clear_overlay_queue(&mut self) {
+    self.str_placements.clear();
+  }
   /// overwrite target texture with string image
   /// - non-text will be overwritten with transparent pixels
   pub fn redraw_texture_with_queue(&mut self, mut font_idx: usize, texture_id: RTextureId) {
