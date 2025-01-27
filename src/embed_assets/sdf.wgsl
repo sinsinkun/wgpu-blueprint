@@ -82,8 +82,15 @@ fn round_merge(sd1: f32, sd2: f32, r: f32) -> f32 {
   return length(intsp) - r;
 }
 
-fn calculate_sdf(p: vec2f, max_dist: f32) -> f32 {
+struct SdfOut {
+  sdf: f32,
+  clr: vec4f,
+}
+
+// calculates sdf + interpolates color between all objects
+fn calculate_sdf(p: vec2f, max_dist: f32) -> SdfOut {
   var sdf = max_dist;
+  var clr = vec4f(0.0);
   for (var i: u32 = 0; i < sys_data.oc; i++) {
     let obj: ObjData = obj_data[i];
     var d = 1000.0;
@@ -106,41 +113,13 @@ fn calculate_sdf(p: vec2f, max_dist: f32) -> f32 {
       d = opOnion(d, obj.onion);
     }
     sdf = min(d, sdf);
+    let intensity = smoothstep(1.0, -1.0, d);
+    clr = mix(clr, obj.color, intensity * obj.color.a);
   }
-  return sdf;
-}
-
-fn interpolate_color(p: vec2f) -> vec4f {
-  var clr = vec4f(0.0);
-  let pstr = 1.0 / f32(sys_data.oc);
-  for (var i: u32 = 0; i < sys_data.oc; i++) {
-    let obj: ObjData = obj_data[i];
-    var d = 1000.0;
-    if (obj.obj_type == 1) { // circle
-      d = sdCircle(p, obj.pos, obj.r);
-    } else if (obj.obj_type == 2) { // box
-      d = sdBox(p, obj.pos, obj.v2);
-    } else if (obj.obj_type == 4) { // angledbox
-      d = sdBoxAngled(p, obj.pos, obj.v2, obj.rot);
-    } else if (obj.obj_type == 3) { // triangle
-      let p0 = vec2f(0.0, 0.0);
-      let p1 = obj.v2;
-      let p2 = obj.v3;
-      d = sdTriangle(p, obj.pos, p0, p1, p2);
-    }
-    if (obj.cr > 0.0) {
-      d = opRound(d, obj.cr);
-    }
-    if (obj.onion > 0.0) {
-      d = opOnion(d, obj.onion);
-    }
-    if (d < 0.0) {
-      clr += obj.color * pstr;
-    } else {
-      clr += clr * pstr;
-    }
-  }
-  return clr;
+  var sdf_out: SdfOut;
+  sdf_out.sdf = sdf;
+  sdf_out.clr = clr;
+  return sdf_out;
 }
 
 // ----------------------------------------- //
@@ -158,12 +137,8 @@ fn vertexMain(input: VertIn) -> VertOut {
 fn fragmentMain(input: VertOut) -> @location(0) vec4f {
   // work in screen space
   let p = input.pos.xy;
-  // define vars
-  let bg = vec4f(0.0);
-  // calculate all object SDFs
+  // calculate all object SDFs - contained in interpolate_colors
   let sdf = calculate_sdf(p, 1000.0);
-  let fg = interpolate_color(p);
-
   // output
-  return mix(bg, fg, smoothstep(1.0, -2.0, sdf));
+  return sdf.clr;
 }

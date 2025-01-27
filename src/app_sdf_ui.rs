@@ -48,7 +48,7 @@ impl AppBase for App {
       sdf_pipe: RPipelineId(0),
       indicator_pipe: RPipelineId(0),
       sdfs: Vec::new(),
-      indicator_sdf: RSDFObject::circle(vec2f!(0.0, 0.0), 10.0).as_line(2.0),
+      indicator_sdf: RSDFObject::circle(vec2f!(0.0, 0.0), 10.0).as_line(1.0),
       time_since_last_fps: Duration::from_secs(1),
       fps_txt: String::new(),
     }
@@ -70,7 +70,7 @@ impl AppBase for App {
       .with_corner(5.0).with_color(RColor::PURPLE);
     self.sdfs.push(rect);
     let rect2 = RSDFObject::rect(vec2f!(300.0, 180.0), vec2f!(100.0, 60.0), None)
-      .as_line(10.0).with_color(RColor::ORANGE);
+      .as_line(10.0).with_color(RColor::BLUE);
     self.sdfs.push(rect2);
     let tri = RSDFObject::triangle(vec2f!(400.0, 400.0), vec2f!(80.0, 0.0), vec2f!(80.0, 80.0))
       .with_color(RColor::GREEN);
