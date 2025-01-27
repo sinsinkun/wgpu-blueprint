@@ -481,7 +481,7 @@ pub(crate) struct RSDFObjectC {
   pub object_type: u32,
   pub radius: f32,
   pub center: [f32; 2],
-  pub rect_size: [f32; 2],
+  pub v2: [f32; 2],
   pub corner_radius: f32,
   pub rotation: f32,
   pub onion: f32,
@@ -491,17 +491,17 @@ pub(crate) struct RSDFObjectC {
 }
 impl RSDFObjectC {
   pub fn from(a: &RSDFObject) -> Self {
-    let mut rect_size = a.rect_size.as_array();
+    let mut v2 = a.rect_size.as_array();
     let mut v3 = Vec2::zero().as_array();
     if a.obj_type == RSDFObjectType::Triangle {
-      rect_size = a.tri_size.0.as_array();
+      v2 = a.tri_size.0.as_array();
       v3 = a.tri_size.1.as_array();
     }
     Self {
       object_type: a.obj_type.into(),
       radius: a.radius,
       center: a.center.as_array(),
-      rect_size,
+      v2,
       corner_radius: a.corner_radius,
       rotation: a.rotation,
       onion: a.line_thickness,

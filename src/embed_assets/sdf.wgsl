@@ -12,7 +12,7 @@ struct ObjData {
   obj_type: u32,
   r: f32,
   pos: vec2f, // first quad
-  rsize: vec2f,
+  v2: vec2f,
   cr: f32,
   rot: f32, // second quad
   onion: f32,
@@ -90,12 +90,12 @@ fn calculate_sdf(p: vec2f, max_dist: f32) -> f32 {
     if (obj.obj_type == 1) { // circle
       d = sdCircle(p, obj.pos, obj.r);
     } else if (obj.obj_type == 2) { // box
-      d = sdBox(p, obj.pos, obj.rsize);
+      d = sdBox(p, obj.pos, obj.v2);
     } else if (obj.obj_type == 4) { // angledbox
-      d = sdBoxAngled(p, obj.pos, obj.rsize, obj.rot);
+      d = sdBoxAngled(p, obj.pos, obj.v2, obj.rot);
     } else if (obj.obj_type == 3) { // triangle
       let p0 = vec2f(0.0, 0.0);
-      let p1 = obj.rsize;
+      let p1 = obj.v2;
       let p2 = obj.v3;
       d = sdTriangle(p, obj.pos, p0, p1, p2);
     }
@@ -112,18 +112,19 @@ fn calculate_sdf(p: vec2f, max_dist: f32) -> f32 {
 
 fn interpolate_color(p: vec2f) -> vec4f {
   var clr = vec4f(0.0);
+  let pstr = 1.0 / f32(sys_data.oc);
   for (var i: u32 = 0; i < sys_data.oc; i++) {
     let obj: ObjData = obj_data[i];
     var d = 1000.0;
     if (obj.obj_type == 1) { // circle
       d = sdCircle(p, obj.pos, obj.r);
     } else if (obj.obj_type == 2) { // box
-      d = sdBox(p, obj.pos, obj.rsize);
+      d = sdBox(p, obj.pos, obj.v2);
     } else if (obj.obj_type == 4) { // angledbox
-      d = sdBoxAngled(p, obj.pos, obj.rsize, obj.rot);
+      d = sdBoxAngled(p, obj.pos, obj.v2, obj.rot);
     } else if (obj.obj_type == 3) { // triangle
       let p0 = vec2f(0.0, 0.0);
-      let p1 = obj.rsize;
+      let p1 = obj.v2;
       let p2 = obj.v3;
       d = sdTriangle(p, obj.pos, p0, p1, p2);
     }
@@ -134,7 +135,9 @@ fn interpolate_color(p: vec2f) -> vec4f {
       d = opOnion(d, obj.onion);
     }
     if (d < 0.0) {
-      clr = obj.color * smoothstep(1.0, -2.0, d);
+      clr += obj.color * pstr;
+    } else {
+      clr += clr * pstr;
     }
   }
   return clr;
