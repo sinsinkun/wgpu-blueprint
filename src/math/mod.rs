@@ -6,6 +6,8 @@ mod lin_alg;
 pub use lin_alg::*;
 mod physics;
 pub use physics::*;
+mod sdf;
+pub use sdf::*;
 mod utils;
 pub use utils::*;
 

@@ -82,27 +82,8 @@ fn round_merge(sd1: f32, sd2: f32, r: f32) -> f32 {
   return length(intsp) - r;
 }
 
-// ----------------------------------------- //
-// ----------- SHADER DEFINITION ----------- //
-// ----------------------------------------- //
-@vertex
-fn vertexMain(input: VertIn) -> VertOut {
-  var out: VertOut;
-  out.pos = vec4f(input.pos, 1.0);
-  out.uv = vec2f(input.uv.x, 1.0 - input.uv.y);
-  return out;
-}
-
-@fragment
-fn fragmentMain(input: VertOut) -> @location(0) vec4f {
-  // work in screen space
-  let p = input.pos.xy;
-  // define vars
-  var merge_sd = 0.0;
-  let merge_dist = sys_data.md;
-  let bg = vec4f(0.0);
-  var fg = vec4f(bg.rgb, 1.0);
-  // calculate all object SDFs
+fn calculate_sdf(p: vec2f, max_dist: f32) -> f32 {
+  var sdf = max_dist;
   for (var i: u32 = 0; i < sys_data.oc; i++) {
     let obj: ObjData = obj_data[i];
     var d = 1000.0;
@@ -124,12 +105,62 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
     if (obj.onion > 0.0) {
       d = opOnion(d, obj.onion);
     }
-    let sq = min(d - merge_dist, 0.0) * min(d - merge_dist, 0.0);
-    fg = mix(fg, obj.color, smoothstep(merge_dist, 0.0, d) * obj.color.a);
-    merge_sd = merge_sd + sq;
+    sdf = min(d, sdf);
   }
-  let merge_fsd = sqrt(merge_sd) - merge_dist;
+  return sdf;
+}
+
+fn interpolate_color(p: vec2f) -> vec4f {
+  var clr = vec4f(0.0);
+  for (var i: u32 = 0; i < sys_data.oc; i++) {
+    let obj: ObjData = obj_data[i];
+    var d = 1000.0;
+    if (obj.obj_type == 1) { // circle
+      d = sdCircle(p, obj.pos, obj.r);
+    } else if (obj.obj_type == 2) { // box
+      d = sdBox(p, obj.pos, obj.rsize);
+    } else if (obj.obj_type == 4) { // angledbox
+      d = sdBoxAngled(p, obj.pos, obj.rsize, obj.rot);
+    } else if (obj.obj_type == 3) { // triangle
+      let p0 = vec2f(0.0, 0.0);
+      let p1 = obj.rsize;
+      let p2 = obj.v3;
+      d = sdTriangle(p, obj.pos, p0, p1, p2);
+    }
+    if (obj.cr > 0.0) {
+      d = opRound(d, obj.cr);
+    }
+    if (obj.onion > 0.0) {
+      d = opOnion(d, obj.onion);
+    }
+    if (d < 0.0) {
+      clr = obj.color * smoothstep(1.0, -2.0, d);
+    }
+  }
+  return clr;
+}
+
+// ----------------------------------------- //
+// ----------- SHADER DEFINITION ----------- //
+// ----------------------------------------- //
+@vertex
+fn vertexMain(input: VertIn) -> VertOut {
+  var out: VertOut;
+  out.pos = vec4f(input.pos, 1.0);
+  out.uv = vec2f(input.uv.x, 1.0 - input.uv.y);
+  return out;
+}
+
+@fragment
+fn fragmentMain(input: VertOut) -> @location(0) vec4f {
+  // work in screen space
+  let p = input.pos.xy;
+  // define vars
+  let bg = vec4f(0.0);
+  // calculate all object SDFs
+  let sdf = calculate_sdf(p, 1000.0);
+  let fg = interpolate_color(p);
 
   // output
-  return mix(bg, fg, smoothstep(0.0, 1.0, merge_fsd));
+  return mix(bg, fg, smoothstep(1.0, -2.0, sdf));
 }

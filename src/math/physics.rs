@@ -1,36 +1,5 @@
-use crate::vec2f;
-
 use super::*;
-
-// --- --- --- --- --- --- --- //
-// --- Collision Detection --- //
-// --- --- --- --- --- --- --- //
-pub fn signed_dist_to_cir(point: Vec2, cir_center: Vec2, cir_radius: f32) -> f32 {
-  let vector = cir_center - point;
-  // note: negative distance if point is within the circle
-  vector.magnitude() - cir_radius
-}
-
-pub fn signed_dist_to_rect(
-  point: Vec2, rect_center: Vec2, rect_size: Vec2, rect_rotation: Option<f32>
-) -> f32 {
-  let rot_p = if let Some(r) = rect_rotation {
-    let rad = r.to_radians();
-    let x = (point.x - rect_center.x) * f32::cos(-rad) - (point.y - rect_center.y) * f32::sin(-rad) + rect_center.x;
-    let y = (point.y - rect_center.y) * f32::cos(-rad) + (point.x - rect_center.x) * f32::sin(-rad) + rect_center.y;
-    vec2f!(x, y)
-  } else { point };
-  let mut abs_p = rot_p - rect_center;
-  if abs_p.x < 0.0 { abs_p.x = -abs_p.x };
-  if abs_p.y < 0.0 { abs_p.y = -abs_p.y };
-  let d0 = abs_p - rect_size * 0.5;
-  let mut d = d0;
-  if d.x < 0.0 { d.x = 0.0 };
-  if d.y < 0.0 { d.y = 0.0 };
-  let outer = d.magnitude();
-  let inner = f32::min(f32::max(d0.x, d0.y), 0.0);
-  outer + inner
-}
+use crate::vec2f;
 
 // --- --- --- --- --- --- --- //
 // --- Collision Response  --- //
