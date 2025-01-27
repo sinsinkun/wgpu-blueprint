@@ -72,16 +72,15 @@ impl AppBase for App {
     let rect2 = RSDFObject::rect(vec2f!(300.0, 180.0), vec2f!(100.0, 60.0), None)
       .as_line(10.0).with_color(RColor::BLUE);
     self.sdfs.push(rect2);
-    let tri = RSDFObject::triangle(vec2f!(400.0, 400.0), vec2f!(80.0, 0.0), vec2f!(80.0, 80.0))
-      .with_color(RColor::GREEN);
-    self.sdfs.push(tri);
+    // let tri = RSDFObject::triangle(vec2f!(400.0, 400.0), vec2f!(80.0, 0.0), vec2f!(80.0, 80.0))
+    //   .with_color(RColor::GREEN);
+    // self.sdfs.push(tri);
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // calculate sdf
     let origin_to_mouse = sys.m_inputs.position.magnitude();
     let sdf_m = calculate_sdf(sys.m_inputs.position, 1000.0, &self.sdfs);
-    let sdf_o = calculate_sdf(vec2f!(0.0, 0.0), 1000.0, &self.sdfs);
-    // update indicator
+    // update sdf indicator
     self.indicator_sdf.center = sys.m_inputs.position;
     if sdf_m >= 0.0 {
       self.indicator_sdf.radius = sdf_m;
@@ -91,14 +90,22 @@ impl AppBase for App {
       self.indicator_sdf.color = RColor::BLACK;
     }
 
+    // update debug text
+    let txt = format!(
+      "P: ({:.2}, {:.2}), SDF: {:.2}, D: {:.2}", 
+      sys.m_inputs.position.x,
+      sys.m_inputs.position.y,
+      sdf_m,
+      origin_to_mouse
+    );
     renderer.queue_overlay_text(StringPlacement {
-      string: format!("SDF: {:.2}, D: {:.2}", sdf_m, origin_to_mouse),
-      base_point: sys.m_inputs.position + vec2f!(0.0, 20.0),
+      string: txt.clone(),
+      base_point: sys.m_inputs.position,
       size: 30.0,
       ..Default::default()
     });
     renderer.queue_overlay_text(StringPlacement {
-      string: format!("SDF from (0.0, 0.0): {:.2}", sdf_o),
+      string: txt.clone(),
       base_point: vec2f!(5.0, sys.win_size.y - 10.0),
       color: RColor::RED,
       size: 30.0,
@@ -106,9 +113,9 @@ impl AppBase for App {
     });
 
     // finalize render
-    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, 20.0, &self.sdfs);
+    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, &self.sdfs);
     renderer.update_sdf_objects(
-      self.indicator_pipe, sys.win_size, sys.m_inputs.position, 20.0, &vec![self.indicator_sdf]
+      self.indicator_pipe, sys.win_size, sys.m_inputs.position, &vec![self.indicator_sdf]
     );
     match self.overlay {
       Some((p,_,_)) => {
