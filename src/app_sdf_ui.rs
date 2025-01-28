@@ -69,8 +69,6 @@ impl AppBase for App {
       .with_corner(5.0).with_color(RColor::PURPLE));
     self.sdfs.push(RSDFObject::rect(vec2f!(300.0, 180.0), vec2f!(100.0, 60.0), None)
       .as_line(10.0).with_color(RColor::BLUE));
-    // self.sdfs.push(RSDFObject::triangle(vec2f!(400.0, 400.0), vec2f!(80.0, 0.0), vec2f!(80.0, 80.0))
-    //   .with_color(RColor::GREEN));
     self.sdfs.push(RSDFObject::line(vec2f!(400.0, 400.0), vec2f!(410.0, 480.0), 5.0)
       .with_color(RColor::GREEN));
     self.sdfs.push(RSDFObject::rect(vec2f!(700.0, 320.0), vec2f!(30.0, 120.0), Some(-30.0))
