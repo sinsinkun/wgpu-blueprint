@@ -122,9 +122,9 @@ impl AppBase for App {
     });
 
     // finalize render
-    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, &self.sdfs);
+    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, 0.0, &self.sdfs);
     renderer.update_sdf_objects(
-      self.indicator_pipe, sys.win_size, sys.m_inputs.position, &ray_cirs
+      self.indicator_pipe, sys.win_size, sys.m_inputs.position, 0.0, &ray_cirs
     );
     match self.overlay {
       Some((p,_,_)) => {
@@ -141,9 +141,9 @@ fn ray_march_debug(col: &mut Vec<RSDFObject>, origin: Vec2, dir: Vec2, max_dist:
   let mut p = origin;
   let mut sdf = calculate_sdf(p, max_dist, objs);
   let mut ray_dist = sdf;
-  let mut loop_ctr = 0;
-  while ray_dist < max_dist && sdf > 0.999 && loop_ctr < 9999 {
-    loop_ctr += 1;
+  let mut iter = 0;
+  while ray_dist < max_dist && sdf > 0.999 && iter < 99999 {
+    iter += 1;
     p = p + ndir * sdf;
     sdf = calculate_sdf(p, max_dist, objs);
     col.push(RSDFObject::circle(p, sdf).as_line(1.0).with_color(RColor::rgb(34, 34, 34)));

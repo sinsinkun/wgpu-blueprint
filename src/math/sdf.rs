@@ -140,7 +140,9 @@ pub fn ray_march_dist(origin: Vec2, dir: Vec2, max_dist: f32, objs: &Vec<RSDFObj
   let mut p = origin;
   let mut sdf = calculate_sdf(p, max_dist, objs);
   let mut ray_dist = sdf;
-  while ray_dist < max_dist && sdf > 0.999 {
+  let mut iter = 0;
+  while ray_dist < max_dist && sdf > 0.999 && iter < 99999 {
+    iter += 1;
     p = p + ndir * sdf;
     sdf = calculate_sdf(p, max_dist, objs);
     ray_dist += sdf;

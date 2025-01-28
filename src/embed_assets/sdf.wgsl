@@ -5,7 +5,7 @@ struct SysData {
   screen: vec2f,
   mp: vec2f,
   oc: u32,
-  md: f32,
+  ld: f32,
 }
 
 struct ObjData {
@@ -138,6 +138,21 @@ fn calculate_sdf(p: vec2f, max_dist: f32) -> SdfOut {
   return sdf_out;
 }
 
+fn ray_march(origin: vec2f, dir: vec2f, max_dist: f32) -> f32 {
+  let ndir = normalize(dir);
+  var p = origin;
+  var sdf = calculate_sdf(p, max_dist);
+  var ray_dist = sdf.sdf;
+  var iter = 0;
+  while ray_dist < max_dist && sdf.sdf > 0.999 && iter < 99999 {
+    iter += 1;
+    p = p + ndir * sdf.sdf;
+    sdf = calculate_sdf(p, max_dist);
+    ray_dist += sdf.sdf;
+  }
+  return min(ray_dist, max_dist);
+}
+
 // ----------------------------------------- //
 // ----------- SHADER DEFINITION ----------- //
 // ----------------------------------------- //
@@ -155,6 +170,10 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
   let p = input.pos.xy;
   // calculate all object SDFs - also interpolates colors
   let sdf = calculate_sdf(p, 1000.0);
+  // let light_p = vec2f(400.0, 400.0);
+  // let d = distance(p, light_p);
+  // let rm = ray_march(p, light_p - p, d);
   // output
-  return sdf.clr;
+  var out = sdf.clr;
+  return out;
 }
