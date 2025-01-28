@@ -1299,20 +1299,30 @@ impl<'a> Renderer<'a> {
     pipeline_id: RPipelineId,
     screen_size: Vec2,
     m_pos: Vec2,
-    shadow_intensity: f32,
-    light_pos: Vec2,
+    light: Option<RSDFLight>,
     objects: &Vec<RSDFObject>
   ) {
     let pipe = &self.pipelines[pipeline_id.0];
     let robj = &self.objects[pipe.obj_indices[0]];
     
     let obj_count = if objects.len() < 100 { objects.len() as u32 } else { 100 };
-    let sys = SysData {
-      screen: screen_size,
-      mouse_pos: m_pos,
-      obj_count,
-      shadow_intensity,
-      light_pos,
+    let sys = match light {
+      Some(l) => SysData {
+        screen: screen_size,
+        mouse_pos: m_pos,
+        obj_count,
+        light_dist: l.max_dist,
+        light_pos: l.pos,
+        light_color: l.color.into(),
+      },
+      None => SysData {
+        screen: screen_size,
+        mouse_pos: m_pos,
+        obj_count,
+        light_dist: 0.0,
+        light_pos: Vec2::zero(),
+        light_color: [0.0; 4],
+      }
     };
     let mut objs: Vec<RSDFObjectC> = Vec::new();
     for o in objects {

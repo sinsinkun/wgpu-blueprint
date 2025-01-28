@@ -381,8 +381,16 @@ pub struct SysData {
   pub screen: Vec2,
   pub mouse_pos: Vec2,
   pub obj_count: u32,
-  pub shadow_intensity: f32,
+  pub light_dist: f32,
   pub light_pos: Vec2,
+  pub light_color: [f32; 4],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RSDFLight {
+  pub pos: Vec2,
+  pub max_dist: f32,
+  pub color: RColor,
 }
 
 #[derive(Debug, Default, PartialEq, Clone, Copy)]

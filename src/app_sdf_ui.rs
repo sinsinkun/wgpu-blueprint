@@ -16,7 +16,7 @@ pub struct App {
 }
 impl App {
   fn init_overlay(&mut self, renderer: &mut Renderer) {
-    renderer.set_clear_color(RColor::hsv(0.65, 0.4, 0.02));
+    renderer.set_clear_color(RColor::hsv(0.65, 0.4, 0.01));
     let ol = renderer.add_overlay_pipe();
     self.overlay = Some(ol)
   }
@@ -119,10 +119,13 @@ impl AppBase for App {
     });
 
     // finalize render
-    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, 0.6, origin, &self.sdfs);
-    renderer.update_sdf_objects(
-      self.indicator_pipe, sys.win_size, sys.m_inputs.position, 0.0, Vec2::zero(), &ray_cirs
-    );
+    let light = RSDFLight {
+      max_dist: 500.0,
+      pos: origin,
+      color: RColor::rgba(157, 200, 219, 100),
+    };
+    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, Some(light), &self.sdfs);
+    renderer.update_sdf_objects(self.indicator_pipe, sys.win_size, sys.m_inputs.position, None, &ray_cirs);
     match self.overlay {
       Some((p,_,_)) => {
         self.update_overlay(sys, renderer);
