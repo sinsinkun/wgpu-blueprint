@@ -58,6 +58,13 @@ pub fn signed_dist_to_triangle(
   f32::sqrt(min_dx) * sign
 }
 
+pub fn signed_dist_to_line(point: Vec2, p0: Vec2, p1: Vec2) -> f32 {
+  let pa = point - p0;
+  let ba = p1 - p0;
+  let h = f32::clamp(pa.dot(ba) / ba.dot(ba), 0.0, 1.0);
+  (pa - ba * h).magnitude()
+}
+
 pub fn signed_dist_with_corner(sd: f32, radius: f32) -> f32 {
   sd - radius
 }
@@ -83,6 +90,9 @@ pub fn calculate_sdf(p: Vec2, max_dist: f32, objs: &Vec<RSDFObject>) -> f32 {
       RSDFObjectType::Triangle => {
         // asums p0 is the center
         d = signed_dist_to_triangle(p, obj.center, vec2f!(0.0, 0.0), obj.tri_size.0, obj.tri_size.1);
+      }
+      RSDFObjectType::Line => {
+        d = signed_dist_to_line(p, obj.center, obj.rect_size);
       }
       _ => ()
     }
@@ -135,5 +145,6 @@ pub fn ray_march_dist(origin: Vec2, dir: Vec2, max_dist: f32, objs: &Vec<RSDFObj
     sdf = calculate_sdf(p, max_dist, objs);
     ray_dist += sdf;
   }
-  ray_dist
+  if ray_dist > max_dist { max_dist }
+  else { ray_dist }
 }

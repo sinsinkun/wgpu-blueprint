@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::*;
 use renderer::*;
-use math::calculate_sdf;
+use math::{calculate_sdf, ray_march_dist};
 
 #[derive(Debug)]
 pub struct App {
@@ -63,24 +63,26 @@ impl AppBase for App {
     self.sdf_pipe = renderer.add_sdf_pipeline();
     self.indicator_pipe = renderer.add_sdf_pipeline();
 
-    let cir = RSDFObject::circle(vec2f!(380.0, 100.0), 60.0)
-      .with_color(RColor::RED);
-    self.sdfs.push(cir);
-    let rect = RSDFObject::rect(vec2f!(200.0, 400.0), vec2f!(80.0, 60.0), None)
-      .with_corner(5.0).with_color(RColor::PURPLE);
-    self.sdfs.push(rect);
-    let rect2 = RSDFObject::rect(vec2f!(300.0, 180.0), vec2f!(100.0, 60.0), None)
-      .as_line(10.0).with_color(RColor::BLUE);
-    self.sdfs.push(rect2);
-    // let tri = RSDFObject::triangle(vec2f!(400.0, 400.0), vec2f!(80.0, 0.0), vec2f!(80.0, 80.0))
-    //   .with_color(RColor::GREEN);
-    // self.sdfs.push(tri);
+    self.sdfs.push(RSDFObject::circle(vec2f!(380.0, 100.0), 60.0)
+      .with_color(RColor::RED));
+    self.sdfs.push(RSDFObject::rect(vec2f!(200.0, 400.0), vec2f!(80.0, 60.0), None)
+      .with_corner(5.0).with_color(RColor::PURPLE));
+    self.sdfs.push(RSDFObject::rect(vec2f!(300.0, 180.0), vec2f!(100.0, 60.0), None)
+      .as_line(10.0).with_color(RColor::BLUE));
+    // self.sdfs.push(RSDFObject::triangle(vec2f!(400.0, 400.0), vec2f!(80.0, 0.0), vec2f!(80.0, 80.0))
+    //   .with_color(RColor::GREEN));
+    self.sdfs.push(RSDFObject::line(vec2f!(400.0, 400.0), vec2f!(410.0, 480.0), 5.0)
+      .with_color(RColor::GREEN));
+    self.sdfs.push(RSDFObject::rect(vec2f!(700.0, 320.0), vec2f!(30.0, 120.0), Some(-30.0))
+      .with_color(RColor::BLUE));
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // calculate sdf
-    let origin_to_mouse = sys.m_inputs.position.magnitude();
+    let origin = sys.win_center();
+    let origin_to_mouse = (sys.m_inputs.position - origin).magnitude();
     let sdf_m = calculate_sdf(sys.m_inputs.position, 1000.0, &self.sdfs);
-    // update sdf indicator
+    let dir = origin - sys.m_inputs.position;
+    let raym_m = ray_march_dist(sys.m_inputs.position, dir, origin_to_mouse, &self.sdfs);
     self.indicator_sdf.center = sys.m_inputs.position;
     if sdf_m >= 0.0 {
       self.indicator_sdf.radius = sdf_m;
@@ -90,13 +92,20 @@ impl AppBase for App {
       self.indicator_sdf.color = RColor::BLACK;
     }
 
+    // create debug ray circles
+    let mut ray_cirs: Vec<RSDFObject> = Vec::new();
+    ray_cirs.push(self.indicator_sdf);
+    ray_cirs.push(RSDFObject::circle(origin, 2.0).with_color(RColor::YELLOW));
+    ray_march_debug(&mut ray_cirs, sys.m_inputs.position, dir, origin_to_mouse, &self.sdfs);
+
     // update debug text
     let txt = format!(
-      "P: ({:.2}, {:.2}), SDF: {:.2}, D: {:.2}", 
+      "P: ({:.2}, {:.2}), SDF: {:.2}, D: {:.2}, RM: {:.2}", 
       sys.m_inputs.position.x,
       sys.m_inputs.position.y,
       sdf_m,
-      origin_to_mouse
+      origin_to_mouse,
+      raym_m
     );
     renderer.queue_overlay_text(StringPlacement {
       string: txt.clone(),
@@ -115,7 +124,7 @@ impl AppBase for App {
     // finalize render
     renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, &self.sdfs);
     renderer.update_sdf_objects(
-      self.indicator_pipe, sys.win_size, sys.m_inputs.position, &vec![self.indicator_sdf]
+      self.indicator_pipe, sys.win_size, sys.m_inputs.position, &ray_cirs
     );
     match self.overlay {
       Some((p,_,_)) => {
@@ -125,4 +134,21 @@ impl AppBase for App {
       None => vec![self.sdf_pipe]
     }
   }
+}
+
+fn ray_march_debug(col: &mut Vec<RSDFObject>, origin: Vec2, dir: Vec2, max_dist: f32, objs: &Vec<RSDFObject>) {
+  let ndir = dir.normalize();
+  let mut p = origin;
+  let mut sdf = calculate_sdf(p, max_dist, objs);
+  let mut ray_dist = sdf;
+  let mut loop_ctr = 0;
+  while ray_dist < max_dist && sdf > 0.999 && loop_ctr < 9999 {
+    loop_ctr += 1;
+    p = p + ndir * sdf;
+    sdf = calculate_sdf(p, max_dist, objs);
+    col.push(RSDFObject::circle(p, sdf).as_line(1.0).with_color(RColor::rgb(34, 34, 34)));
+    ray_dist += sdf;
+  }
+  if ray_dist > max_dist { ray_dist = max_dist; }
+  col.push(RSDFObject::line(origin, origin + ray_dist * ndir, 1.0).with_color(RColor::rgba(200, 200, 0, 180)));
 }

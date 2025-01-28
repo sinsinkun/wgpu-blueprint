@@ -387,7 +387,7 @@ pub struct SysData {
 #[derive(Debug, Default, PartialEq, Clone, Copy)]
 pub enum RSDFObjectType {
   #[default]
-  None, Circle, Rectangle, Triangle, RectAngled, Pie,
+  None, Circle, Rectangle, Triangle, RectAngled, Line, Pie,
 }
 impl From<RSDFObjectType> for u32 {
   fn from(value: RSDFObjectType) -> Self {
@@ -396,6 +396,7 @@ impl From<RSDFObjectType> for u32 {
       RSDFObjectType::Rectangle => 2,
       RSDFObjectType::Triangle => 3,
       RSDFObjectType::RectAngled => 4,
+      RSDFObjectType::Line => 5,
       _ => 0,
     }
   }
@@ -442,7 +443,7 @@ impl RSDFObject {
     let mut rotation = 0.0;
     if let Some(a) = angle {
       obj_type = RSDFObjectType::RectAngled;
-      rotation = a.to_radians();
+      rotation = a;
     }
     Self {
       obj_type,
@@ -460,6 +461,15 @@ impl RSDFObject {
       ..Default::default()
     }
   }
+  pub fn line(p1: Vec2, p2: Vec2, thickness: f32) -> Self {
+    Self {
+      obj_type: RSDFObjectType::Line,
+      center: p1,
+      rect_size: p2,
+      line_thickness: thickness,
+      ..Default::default()
+    }
+  }
   pub fn with_color(mut self, color: RColor) -> Self {
     self.color = color;
     self
@@ -471,6 +481,10 @@ impl RSDFObject {
   pub fn as_line(mut self, thickness: f32) -> Self {
     self.line_thickness = thickness;
     self
+  }
+  pub fn update_line(&mut self, p1: Vec2, p2: Vec2) {
+    self.center = p1;
+    self.rect_size = p2;
   }
 }
 

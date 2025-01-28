@@ -49,6 +49,13 @@ fn sdBoxAngled(p: vec2f, c: vec2f, b: vec2f, a: f32) -> f32 {
   return sdBox(np, c, b);
 }
 
+fn sdLine(p: vec2f, a: vec2f, b: vec2f) -> f32 {
+  let pa = p - a;
+  let ba = b - a;
+  let h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h);
+}
+
 fn dot2(v: vec2f) -> f32 {
   return dot(v, v);
 }
@@ -107,12 +114,13 @@ fn calculate_sdf(p: vec2f, max_dist: f32) -> SdfOut {
     } else if (obj.obj_type == 2) { // box
       d = sdBox(p, obj.pos, obj.v2);
     } else if (obj.obj_type == 4) { // angledbox
-      d = sdBoxAngled(p, obj.pos, obj.v2, obj.rot);
+      let a = radians(obj.rot);
+      d = sdBoxAngled(p, obj.pos, obj.v2, a);
     } else if (obj.obj_type == 3) { // triangle
-      let p0 = vec2f(0.0, 0.0);
-      let p1 = obj.v2;
-      let p2 = obj.v3;
-      d = sdTriangle(p, obj.pos, p0, p1, p2);
+      let p1 = vec2f(0.0, 0.0);
+      d = sdTriangle(p, obj.pos, p1, obj.v2, obj.v3);
+    } else if (obj.obj_type == 5) { // line
+      d = sdLine(p, obj.pos, obj.v2);
     }
     if (obj.cr > 0.0) {
       d = opRound(d, obj.cr);
