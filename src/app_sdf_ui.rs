@@ -110,21 +110,20 @@ impl AppBase for App {
     renderer.queue_overlay_text(StringPlacement {
       string: txt.clone(),
       base_point: sys.m_inputs.position,
-      size: 30.0,
+      size: 20.0,
       ..Default::default()
     });
     renderer.queue_overlay_text(StringPlacement {
       string: txt.clone(),
       base_point: vec2f!(5.0, sys.win_size.y - 10.0),
-      color: RColor::RED,
-      size: 30.0,
+      size: 20.0,
       ..Default::default()
     });
 
     // finalize render
-    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, 0.0, &self.sdfs);
+    renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, 0.6, origin, &self.sdfs);
     renderer.update_sdf_objects(
-      self.indicator_pipe, sys.win_size, sys.m_inputs.position, 0.0, &ray_cirs
+      self.indicator_pipe, sys.win_size, sys.m_inputs.position, 0.0, Vec2::zero(), &ray_cirs
     );
     match self.overlay {
       Some((p,_,_)) => {
@@ -150,5 +149,8 @@ fn ray_march_debug(col: &mut Vec<RSDFObject>, origin: Vec2, dir: Vec2, max_dist:
     ray_dist += sdf;
   }
   if ray_dist > max_dist { ray_dist = max_dist; }
-  col.push(RSDFObject::line(origin, origin + ray_dist * ndir, 1.0).with_color(RColor::rgba(200, 200, 0, 180)));
+  if ray_dist > 0.0 {
+    col.push(RSDFObject::line(origin, origin + ray_dist * ndir, 1.0)
+      .with_color(RColor::rgba(200, 200, 0, 180)));
+  }
 }

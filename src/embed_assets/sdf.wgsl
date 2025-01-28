@@ -3,9 +3,10 @@
 
 struct SysData {
   screen: vec2f,
-  mp: vec2f,
-  oc: u32,
-  ld: f32,
+  mouse_pos: vec2f,
+  obj_count: u32,
+  shadow_intensity: f32,
+  light_pos: vec2f,
 }
 
 struct ObjData {
@@ -106,7 +107,7 @@ struct SdfOut {
 fn calculate_sdf(p: vec2f, max_dist: f32) -> SdfOut {
   var sdf = max_dist;
   var clr = vec4f(0.0);
-  for (var i: u32 = 0; i < sys_data.oc; i++) {
+  for (var i: u32 = 0; i < sys_data.obj_count; i++) {
     let obj: ObjData = obj_data[i];
     var d = 1000.0;
     if (obj.obj_type == 1) { // circle
@@ -139,7 +140,7 @@ fn calculate_sdf(p: vec2f, max_dist: f32) -> SdfOut {
 }
 
 fn ray_march(origin: vec2f, dir: vec2f, max_dist: f32) -> f32 {
-  let ndir = normalize(dir);
+  let ndir = normalize(-dir);
   var p = origin;
   var sdf = calculate_sdf(p, max_dist);
   var ray_dist = sdf.sdf;
@@ -170,10 +171,13 @@ fn fragmentMain(input: VertOut) -> @location(0) vec4f {
   let p = input.pos.xy;
   // calculate all object SDFs - also interpolates colors
   let sdf = calculate_sdf(p, 1000.0);
-  // let light_p = vec2f(400.0, 400.0);
-  // let d = distance(p, light_p);
-  // let rm = ray_march(p, light_p - p, d);
+  let d = distance(p, sys_data.light_pos);
+  let rm = ray_march(p, p - sys_data.light_pos, d);
   // output
   var out = sdf.clr;
+  if (sys_data.shadow_intensity > 0.0 && sdf.sdf > 0.0) {
+    let shadow = vec4f(0.0, 0.0, 0.0, sys_data.shadow_intensity);
+    out = mix(out, shadow, smoothstep(0.0, 50.0, d - rm));
+  }
   return out;
 }

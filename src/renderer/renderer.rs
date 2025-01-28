@@ -1295,7 +1295,13 @@ impl<'a> Renderer<'a> {
   }
   /// push the finalized position of all SDF objects
   pub fn update_sdf_objects(
-    &mut self, pipeline_id: RPipelineId, screen_size: Vec2, m_pos: Vec2, light_dist: f32, objects: &Vec<RSDFObject>
+    &mut self,
+    pipeline_id: RPipelineId,
+    screen_size: Vec2,
+    m_pos: Vec2,
+    shadow_intensity: f32,
+    light_pos: Vec2,
+    objects: &Vec<RSDFObject>
   ) {
     let pipe = &self.pipelines[pipeline_id.0];
     let robj = &self.objects[pipe.obj_indices[0]];
@@ -1305,7 +1311,8 @@ impl<'a> Renderer<'a> {
       screen: screen_size,
       mouse_pos: m_pos,
       obj_count,
-      light_dist,
+      shadow_intensity,
+      light_pos,
     };
     let mut objs: Vec<RSDFObjectC> = Vec::new();
     for o in objects {
