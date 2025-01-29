@@ -122,7 +122,7 @@ impl AppBase for App {
     let light = RSDFLight {
       max_dist: 500.0,
       pos: origin,
-      color: RColor::rgba(80, 200, 160, 60),
+      color: RColor::rgba(80, 200, 160, 200),
     };
     renderer.update_sdf_objects(self.sdf_pipe, sys.win_size, sys.m_inputs.position, Some(light), &self.sdfs);
     renderer.update_sdf_objects(self.indicator_pipe, sys.win_size, sys.m_inputs.position, None, &ray_cirs);

@@ -42,6 +42,12 @@ fn random(c: vec2f) -> f32 {
   return fract(sin(dot(c, vec2f(12.9898,78.233))) * 43758.5453);
 }
 
+fn dither(position: vec2f) -> f32 {
+  let a1 = 0.75487766624669276;
+  let a2 = 0.569840290998;
+  return fract(a1 * position.x + a2 * position.y);
+}
+
 // ----------------------------------------- //
 // ------------- SDF FUNCTIONS ------------- //
 // ----------------------------------------- //
