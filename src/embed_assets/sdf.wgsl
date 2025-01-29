@@ -36,66 +36,10 @@ struct VertOut {
 // ------------ NOISE GENERATOR ------------ //
 // ----------------------------------------- //
 
-fn mod289v3(x: vec3f) -> vec3f {
-  return x - floor(x * (1.0 / 289.0)) * 289.0;
-}
+const noise_granularity: f32 = 0.5 / 255.0;
 
-fn mod289(x: vec2f) -> vec2f {
-  return x - floor(x * (1.0 / 289.0)) * 289.0;
-}
-
-fn permute(x: vec3f) -> vec3f {
-  return mod289v3(((x*34.0)+10.0)*x);
-}
-
-fn snoise(v: vec2f) -> f32 {
-  let nc = vec4f(0.211324865405187,  // (3.0-sqrt(3.0))/6.0
-                0.366025403784439,  // 0.5*(sqrt(3.0)-1.0)
-               -0.577350269189626,  // -1.0 + 2.0 * C.x
-                0.024390243902439); // 1.0 / 41.0
-  // First corner
-  var i: vec2f = floor(v + dot(v, nc.yy) );
-  let x0 = v - i + dot(i, nc.xx);
-
-  // Other corners
-  var i1: vec2f;
-  //i1.x = step( x0.y, x0.x ); // x0.x > x0.y ? 1.0 : 0.0
-  //i1.y = 1.0 - i1.x;
-  if (x0.x > x0.y) {
-    i1 = vec2f(1.0, 0.0);
-  } else {
-    i1 = vec2f(0.0, 1.0);
-  }
-  // x0 = x0 - 0.0 + 0.0 * nc.xx ;
-  // x1 = x0 - i1 + 1.0 * nc.xx ;
-  // x2 = x0 - 1.0 + 2.0 * nc.xx ;
-  var x12: vec4f = x0.xyxy + nc.xxzz;
-  x12= vec4f(x12.x - i1.x, x12.y - i1.y, x12.zw);
-
-  // Permutations
-  i = mod289(i); // Avoid truncation effects in permutation
-  let p = permute( permute( i.y + vec3f(0.0, i1.y, 1.0 )) + i.x + vec3f(0.0, i1.x, 1.0 ));
-  var m = max(0.5 - vec3f(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), vec3f(0.0));
-  m = m*m;
-  m = m*m;
-
-  // Gradients: 41 points uniformly over a line, mapped onto a diamond.
-  // The ring size 17*17 = 289 is close to a multiple of 41 (41*7 = 287)
-  let x = 2.0 * fract(p * nc.www) - 1.0;
-  let h = abs(x) - 0.5;
-  let ox = floor(x + 0.5);
-  let a0 = x - ox;
-
-  // Normalise gradients implicitly by scaling m
-  // Approximation of: m *= inversesqrt( a0*a0 + h*h );
-  m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
-
-  // Compute final noise value at P
-  let g = vec3f(
-    a0.x  * x0.x  + h.x  * x0.y,
-    a0.yz * x12.xz + h.yz * x12.yw
-  );
-  return 130.0 * dot(m, g);
+fn random(c: vec2f) -> f32 {
+  return fract(sin(dot(c, vec2f(12.9898,78.233))) * 43758.5453);
 }
 
 // ----------------------------------------- //
@@ -206,19 +150,31 @@ fn calculate_sdf(p: vec2f, max_dist: f32) -> SdfOut {
   return sdf_out;
 }
 
-fn ray_march(origin: vec2f, dir: vec2f, max_dist: f32) -> f32 {
+struct RayMarchOut {
+  d: f32,
+  min_sdf: f32,
+}
+
+fn ray_march(origin: vec2f, dir: vec2f, max_dist: f32) -> RayMarchOut {
   let ndir = normalize(-dir);
   var p = origin;
   var sdf = calculate_sdf(p, max_dist);
   var ray_dist = sdf.sdf;
+  var min_sdf = sdf.sdf;
   var iter = 0;
   while ray_dist < max_dist && sdf.sdf > 0.999 && iter < 99999 {
     iter += 1;
     p = p + ndir * sdf.sdf;
     sdf = calculate_sdf(p, max_dist);
     ray_dist += sdf.sdf;
+    if (sdf.sdf < min_sdf) {
+      min_sdf = sdf.sdf;
+    }
   }
-  return min(ray_dist, max_dist);
+  var out: RayMarchOut;
+  out.d = min(ray_dist, max_dist);
+  out.min_sdf = min_sdf;
+  return out;
 }
 
 // ----------------------------------------- //
@@ -236,14 +192,24 @@ fn vertexMain(input: VertIn) -> VertOut {
 fn fragmentMain(input: VertOut) -> @location(0) vec4f {
   // work in screen space
   let p = input.pos.xy;
+  let shadow_smoothing = 4.0;
   // calculate all object SDFs - also interpolates colors
-  let sdf = calculate_sdf(p, 1000.0);
+  let sdf = calculate_sdf(p, 10000.0);
   let d = distance(p, sys_data.light_pos);
-  let rm = ray_march(p, p - sys_data.light_pos, d);
+  let shadow_offset = step(0.1, sys_data.light_dist) * normalize(p - sys_data.light_pos) * shadow_smoothing;
+  let rm = ray_march(p - shadow_offset, p - sys_data.light_pos, d);
   // output
   var out = sdf.clr;
-  if (sys_data.light_dist > 0.0 && abs(d - rm) < 1.0) {
-    out += sys_data.light_color * smoothstep(sys_data.light_dist, 0.0, d);
+  // calculate lighting
+  if (sys_data.light_dist > 0.0 && abs(d - rm.d) < 0.1) {
+    var lc = sys_data.light_color;
+    // soft shadow smoothing
+    if (d > shadow_smoothing) {
+      lc = lc * smoothstep(0.0, shadow_smoothing, rm.min_sdf);
+    }
+    // light distance attenuation
+    let dlc = lc * smoothstep(sys_data.light_dist, 0.0, d);
+    out += dlc;
   }
   return out;
 }
