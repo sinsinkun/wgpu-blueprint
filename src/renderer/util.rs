@@ -508,8 +508,8 @@ pub(crate) struct RSDFObjectC {
   pub corner_radius: f32,
   pub rotation: f32,
   pub onion: f32,
-  pub v3: [f32; 2],
   buffer: f32,
+  pub v3: [f32; 2],
   pub color: [f32; 4],
 }
 impl RSDFObjectC {

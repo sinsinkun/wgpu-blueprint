@@ -73,6 +73,8 @@ impl AppBase for App {
       .with_color(RColor::GREEN));
     self.sdfs.push(RSDFObject::rect(vec2f!(700.0, 320.0), vec2f!(30.0, 120.0), Some(-30.0))
       .with_color(RColor::BLUE));
+    self.sdfs.push(RSDFObject::triangle(vec2f!(550.0, 100.0), vec2f!(10.0, 100.0), vec2f!(120.0, 40.0))
+      .with_corner(12.0).with_color(RColor::PURPLE));
   }
   fn update(&mut self, sys: SystemInfo, renderer: &mut Renderer) -> Vec<RPipelineId> {
     // calculate sdf

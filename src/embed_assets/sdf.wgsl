@@ -83,21 +83,26 @@ fn sdTriangle(p: vec2f, c: vec2f, p0: vec2f, p1: vec2f, p2: vec2f) -> f32 {
 
   let e0 = p1 - p0;
   let v0 = np - p0;
-  let d0: f32 = dot2(v0-e0*clamp(dot(v0,e0)/dot(e0,e0),0.0,1.0));
+  let d0 = v0 - e0 * clamp(dot(v0,e0)/dot(e0,e0),0.0,1.0);
+  let d0d = dot(d0, d0);
 
   let e1 = p2 - p1;
   let v1 = np - p1;
-  let d1: f32 = dot2(v1-e1*clamp(dot(v1,e1)/dot(e1,e1),0.0,1.0));
+  let d1 = v1 - e1 * clamp(dot(v1,e1)/dot(e1,e1),0.0,1.0);
+  let d1d = dot(d1, d1);
 
   let e2 = p0 - p2;
   let v2 = np - p2;
-  let d2: f32 = dot2(v2-e2*clamp(dot(v2,e2)/dot(e2,e2),0.0,1.0));
+  let d2 = v2 - e2 * clamp(dot(v2,e2)/dot(e2,e2),0.0,1.0);
+  let d2d = dot(d2, d2);
 
   let o: f32 = e0.x * e2.y - e0.y * e2.x;
-  let d: vec2f = min(min(vec2(d0,o*(v0.x*e0.y-v0.y*e0.x)),
-                         vec2(d1,o*(v1.x*e1.y-v1.y*e1.x))),
-                         vec2(d2,o*(v2.x*e2.y-v2.y*e2.x)));
-	return -sqrt(d.x) * sign(d.y);
+  let y0 = o*(v0.x*e0.y - v0.y*e0.x);
+  let y1 = o*(v1.x*e1.y - v1.y*e1.x);
+  let y2 = o*(v2.x*e2.y - v2.y*e2.x);
+  let mind = min(min(d0d, d1d), d2d);
+  let miny = min(min(y0, y1), y2);
+	return sqrt(mind) * -1.0 * sign(miny);
 }
 
 // round corners
@@ -135,8 +140,8 @@ fn calculate_sdf(p: vec2f, max_dist: f32) -> SdfOut {
       let a = radians(obj.rot);
       d = sdBoxAngled(p, obj.pos, obj.v2, a);
     } else if (obj.obj_type == 3) { // triangle
-      let p1 = vec2f(0.0, 0.0);
-      d = sdTriangle(p, obj.pos, p1, obj.v2, obj.v3);
+      let p0 = vec2f(1.0, 1.0);
+      d = sdTriangle(p, obj.pos, p0, obj.v2, obj.v3);
     } else if (obj.obj_type == 5) { // line
       d = sdLine(p, obj.pos, obj.v2);
     }

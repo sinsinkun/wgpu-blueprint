@@ -34,28 +34,35 @@ pub fn signed_dist_to_triangle(
   point: Vec2, center: Vec2, p0: Vec2, p1: Vec2, p2: Vec2
 ) -> f32 {
   let np = point - center;
-  let e0 = p1 - p0;
-  let e1 = p2 - p1;
-  let e2 = p0 - p2;
-  let v0 = np - p0;
-  let v1 = np - p1;
-  let v2 = np - p2;
-  let pq0 = v0 - e0 * f32::clamp( v0.dot(e0) / e0.dot(e0), 0.0, 1.0);
-  let pq1 = v1 - e1 * f32::clamp( v1.dot(e1) / e1.dot(e1), 0.0, 1.0);
-  let pq2 = v2 - e2 * f32::clamp( v2.dot(e2) / e2.dot(e2), 0.0, 1.0);
-  let s = if e0.x * e2.y - e0.y * e2.x > 0.0 { 1.0 } else { -1.0 };
-  let d1 = vec2f!(pq0.dot(pq0), s * (v0.x * e0.y - v0.y * e0.x));
-  let d2 = vec2f!(pq1.dot(pq1), s * (v1.x * e1.y - v1.y * e1.x));
-  let d3 = vec2f!(pq2.dot(pq2), s * (v2.x * e2.y - v2.y * e2.x));
-  let mut min_dx = d1.x;
-  if min_dx > d2.x { min_dx = d2.x; }
-  if min_dx > d3.x { min_dx = d3.x; }
-  let mut min_dy = d1.y;
-  if min_dy > d2.y { min_dy = d2.y; }
-  if min_dy > d3.y { min_dy = d3.y; }
-  let sign = if min_dy > 0.0 { -1.0 } else { 1.0 };
 
-  f32::sqrt(min_dx) * sign
+  let e0 = p1 - p0;
+  let v0 = np - p0;
+  let d0 = v0 - e0 * f32::clamp(v0.dot(e0)/e0.dot(e0), 0.0, 1.0);
+  let d0d = d0.dot(d0);
+
+  let e1 = p2 - p1;
+  let v1 = np - p1;
+  let d1 = v1 - e1 * f32::clamp(v1.dot(e1)/e1.dot(e1), 0.0, 1.0);
+  let d1d = d1.dot(d1);
+
+  let e2 = p0 - p2;
+  let v2 = np - p2;
+  let d2 = v2 - e2 * f32::clamp(v2.dot(e2)/e2.dot(e2), 0.0, 1.0);
+  let d2d = d2.dot(d2);
+
+  let o: f32 = e0.x * e2.y - e0.y * e2.x;
+  let y0 = o*(v0.x*e0.y - v0.y*e0.x);
+  let y1 = o*(v1.x*e1.y - v1.y*e1.x);
+  let y2 = o*(v2.x*e2.y - v2.y*e2.x);
+  let mut min_d = d0d;
+  if d1d < min_d { min_d = d1d; }
+  if d2d < min_d { min_d = d2d; }
+  let mut min_y = y0;
+  if y1 < min_y { min_y = y1; }
+  if y2 < min_y { min_y = y2; }
+  let sign = if min_y > 0.0 { -1.0 } else { 1.0 };
+
+  f32::sqrt(min_d) * sign
 }
 
 pub fn signed_dist_to_line(point: Vec2, p0: Vec2, p1: Vec2) -> f32 {
@@ -88,7 +95,7 @@ pub fn calculate_sdf(p: Vec2, max_dist: f32, objs: &Vec<RSDFObject>) -> f32 {
         d = signed_dist_to_rect(p, obj.center, obj.rect_size, Some(obj.rotation));
       }
       RSDFObjectType::Triangle => {
-        // asums p0 is the center
+        // assumes p0 is the center
         d = signed_dist_to_triangle(p, obj.center, vec2f!(0.0, 0.0), obj.tri_size.0, obj.tri_size.1);
       }
       RSDFObjectType::Line => {
