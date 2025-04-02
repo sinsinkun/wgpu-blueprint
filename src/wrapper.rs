@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use wgpu::{ Device, Queue, TextureFormat, SurfaceConfiguration };
+use wgpu::{ Device, Queue, Surface, SurfaceConfiguration, TextureFormat };
 use winit::{
   application::ApplicationHandler,
   dpi::{PhysicalSize, PhysicalPosition},
@@ -19,11 +19,47 @@ use crate::utils::Vec2;
 // --- --- --- --- --- --- --- --- --- //
 #[allow(unused)]
 #[derive(Debug)]
-pub struct GpuAccess {
+pub struct GpuAccess<'a> {
 	pub window: Arc<Window>,
 	pub device: Device,
 	pub queue: Queue,
+	pub screen_surface: Surface<'a>,
 	pub screen_config: SurfaceConfiguration,
+}
+impl GpuAccess<'_> {
+	pub fn begin_render(&mut self) -> Result<(wgpu::CommandEncoder, wgpu::SurfaceTexture), wgpu::SurfaceError> {
+		let output = self.screen_surface.get_current_texture()?;
+		let encoder = self.device.create_command_encoder(
+      &wgpu::CommandEncoderDescriptor { label: Some("render-encoder") }
+    );
+		Ok((encoder, output))
+	}
+	pub fn clear(&self, encoder: &mut wgpu::CommandEncoder, surface: &wgpu::SurfaceTexture, color: Option<wgpu::Color>) {
+		let clear_color = color.unwrap_or(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0});
+		let tvd = wgpu::TextureViewDescriptor::default();
+    let target = surface.texture.create_view(&tvd);
+		let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+			label: Some("clear-render"),
+			color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+				view: &target,
+				resolve_target: None,
+				ops: wgpu::Operations {
+					load: wgpu::LoadOp::Clear(clear_color),
+					store: wgpu::StoreOp::Store
+				}
+			})],
+			..Default::default()
+		});
+	}
+	pub fn end_render(&self, encoder: wgpu::CommandEncoder, surface: wgpu::SurfaceTexture) {
+		self.queue.submit(std::iter::once(encoder.finish()));
+		surface.present();
+	}
+	pub fn resize_screen(&mut self, width: u32, height: u32) {
+		self.screen_config.width = width;
+		self.screen_config.height = height;
+		self.screen_surface.configure(&self.device, &self.screen_config);
+	}
 }
 
 #[allow(unused)]
@@ -60,15 +96,15 @@ impl MouseState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct SystemInfo<'a> {
-	pub gpu: &'a mut GpuAccess,
+pub struct SystemInfo<'a, 'b> {
+	pub gpu: &'a mut GpuAccess<'b>,
   pub kb_inputs: &'a HashMap<KeyCode, MKBState>,
   pub m_inputs: &'a MouseState,
   pub frame_delta: &'a Duration,
   pub win_size: Vec2,
 }
 #[allow(dead_code)]
-impl SystemInfo<'_> {
+impl SystemInfo<'_, '_> {
 	fn time_delta(&self) -> f32 {
 		self.frame_delta.as_secs_f32()
 	}
@@ -89,6 +125,8 @@ pub trait AppBase {
 	fn update(&mut self, sys: SystemInfo);
   /// actions to take after exiting event loop
 	fn cleanup(&mut self) {}
+	/// pass back call to invoke exit
+	fn request_exit(&self) -> bool { false }
 }
 impl std::fmt::Debug for dyn AppBase {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -123,10 +161,10 @@ impl Default for WinitConfig {
 }
 
 #[derive(Debug)]
-struct WinitApp<T> {
+struct WinitApp<'a, T> {
 	setup: WinitConfig,
 	wait_duration: Duration,
-	gpu: Option<GpuAccess>,
+	gpu: Option<GpuAccess<'a>>,
 	// input handling
 	window_size: (u32, u32),
 	input_cache: HashMap<KeyCode, MKBState>,
@@ -136,7 +174,7 @@ struct WinitApp<T> {
 	// custom app definition
 	app: T,
 }
-impl<T: AppBase> WinitApp<T> {
+impl<'a, T: AppBase> WinitApp<'a, T> {
   fn new(config: WinitConfig, app: T) -> Self {
 		// convert fps to wait duration
 		let mut mms = 1000;
@@ -156,14 +194,15 @@ impl<T: AppBase> WinitApp<T> {
     }
   }
 	async fn wgpu_init(&mut self, win: Window) {
+		let size = win.inner_size();
 		let window_handle = Arc::new(win);
 
 		// The instance is a handle to our GPU
     // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-      backends: wgpu::Backends::PRIMARY,
-      ..Default::default()
-    });
+			backends: wgpu::Backends::PRIMARY,
+			..Default::default()
+		});
     let surface = instance.create_surface(window_handle.clone()).unwrap();
 
     // handle for graphics card
@@ -179,9 +218,9 @@ impl<T: AppBase> WinitApp<T> {
     let (device, queue) = adapter.request_device(
       &wgpu::DeviceDescriptor {
         required_features: wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::POLYGON_MODE_POINT,
-        required_limits: { wgpu::Limits::default() },
+        required_limits: wgpu::Limits::default(),
         label: None,
-        memory_hints: wgpu::MemoryHints::Performance,
+        memory_hints: Default::default(),
       },
       None, // Trace path
     ).await.unwrap();
@@ -194,22 +233,22 @@ impl<T: AppBase> WinitApp<T> {
 			TextureFormat::Rgba8Unorm
 		} else {
 			surface_caps.formats.iter()
+				.find(|f| f.is_srgb())
 				.copied()
-				.filter(|f| f.is_srgb())
-				.next()
 				.unwrap_or(surface_caps.formats[0])
 		};
 
 		let config = SurfaceConfiguration {
       usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
       format: surface_format,
-      width: self.window_size.0,
-      height: self.window_size.1,
+      width: size.width,
+      height: size.height,
       present_mode: wgpu::PresentMode::AutoNoVsync,
       alpha_mode: surface_caps.alpha_modes[0],
       view_formats: vec![],
       desired_maximum_frame_latency: 2,
     };
+		surface.configure(&device, &config);
 
 		if self.setup.debug {
 			println!("Sucessfully linked gpu: {:?}", adapter.get_info());
@@ -218,11 +257,12 @@ impl<T: AppBase> WinitApp<T> {
 			window: window_handle,
 			device,
 			queue,
+			screen_surface: surface,
 			screen_config: config,
 		});
 	}
 }
-impl<T: AppBase> ApplicationHandler for WinitApp<T> {
+impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
   // initialization
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		if self.gpu.is_some() {
@@ -270,7 +310,11 @@ impl<T: AppBase> ApplicationHandler for WinitApp<T> {
 		};
 	}
   // system updates
-  fn new_events(&mut self, _evt_loop: &ActiveEventLoop, _cause: StartCause) {
+  fn new_events(&mut self, event_loop: &ActiveEventLoop, _cause: StartCause) {
+		if self.app.request_exit() {
+			self.app.cleanup();
+			event_loop.exit();
+		}
     // calculate time data
 		let now = Instant::now();
 		self.frame_delta = now - self.last_frame;
@@ -288,6 +332,9 @@ impl<T: AppBase> ApplicationHandler for WinitApp<T> {
 			}
 			WindowEvent::Resized( phys_size, .. ) => {
 				self.window_size = phys_size.into();
+				if let Some(r) = &mut self.gpu {
+					r.resize_screen(self.window_size.0, self.window_size.1);
+				}
 			}
 			WindowEvent::KeyboardInput { event: KeyEvent { physical_key: key, state, repeat, .. }, .. } => {
 				// add key to input cache
@@ -350,10 +397,10 @@ impl<T: AppBase> ApplicationHandler for WinitApp<T> {
 			}
 			WindowEvent::RedrawRequested => {
 				// app  update actions
-				if let Some(gr) = &mut self.gpu {
+				if let Some(r) = &mut self.gpu {
 					self.mouse_cache.frame_sync();
 					self.app.update(SystemInfo {
-						gpu: gr,
+						gpu: r,
 						kb_inputs: &self.input_cache,
 						m_inputs: &self.mouse_cache,
 						frame_delta: &self.frame_delta,
