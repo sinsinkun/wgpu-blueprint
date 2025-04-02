@@ -121,12 +121,14 @@ pub trait AppBase {
 	fn new() -> Self where Self: Sized;
 	/// actions to take on initialization (after window creation + gpu is successful)
 	fn init(&mut self, sys: SystemInfo);
+	/// actions to take when screen resizes (asynchronous with update call)
+	fn resize(&mut self, sys: SystemInfo, width: u32, height: u32) {}
 	/// actions to take per frame
 	fn update(&mut self, sys: SystemInfo);
-  /// actions to take after exiting event loop
-	fn cleanup(&mut self) {}
 	/// pass back call to invoke exit
 	fn request_exit(&self) -> bool { false }
+  /// actions to take after exiting event loop
+	fn cleanup(&mut self) {}
 }
 impl std::fmt::Debug for dyn AppBase {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -146,6 +148,7 @@ pub struct WinitConfig {
 	pub title: String,
 	pub icon: Option<String>,
 	pub debug: bool,
+	pub resizable: bool,
 }
 impl Default for WinitConfig {
 	fn default() -> Self {
@@ -156,6 +159,7 @@ impl Default for WinitConfig {
 			title: "Blueprint".to_owned(),
 			icon: None,
 			debug: false,
+			resizable: true,
 		}
 	}
 }
@@ -248,7 +252,8 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
       view_formats: vec![],
       desired_maximum_frame_latency: 2,
     };
-		surface.configure(&device, &config);
+		// invoked via resize call
+		// surface.configure(&device, &config);
 
 		if self.setup.debug {
 			println!("Sucessfully linked gpu: {:?}", adapter.get_info());
@@ -286,6 +291,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 		let window_attributes = Window::default_attributes()
 			.with_min_inner_size(PhysicalSize::new(self.setup.min_size.0, self.setup.min_size.1))
 			.with_inner_size(PhysicalSize::new(self.setup.size.0, self.setup.size.1))
+			.with_resizable(self.setup.resizable)
 			.with_window_icon(icon)
 			.with_title(self.setup.title.as_str());
 		match event_loop.create_window(window_attributes) {
@@ -312,7 +318,6 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
   // system updates
   fn new_events(&mut self, event_loop: &ActiveEventLoop, _cause: StartCause) {
 		if self.app.request_exit() {
-			self.app.cleanup();
 			event_loop.exit();
 		}
     // calculate time data
@@ -333,7 +338,13 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			WindowEvent::Resized( phys_size, .. ) => {
 				self.window_size = phys_size.into();
 				if let Some(r) = &mut self.gpu {
-					r.resize_screen(self.window_size.0, self.window_size.1);
+					self.app.resize(SystemInfo {
+						gpu: r,
+						kb_inputs: &self.input_cache,
+						m_inputs: &self.mouse_cache,
+						frame_delta: &self.frame_delta,
+						win_size: Vec2::from_u32_tuple(self.window_size),
+					}, phys_size.width, phys_size.height);
 				}
 			}
 			WindowEvent::KeyboardInput { event: KeyEvent { physical_key: key, state, repeat, .. }, .. } => {

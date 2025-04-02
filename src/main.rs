@@ -20,6 +20,9 @@ impl AppBase for App {
   fn init(&mut self, _sys: SystemInfo) {
     println!("Hello world");
   }
+  fn resize(&mut self, sys: SystemInfo, width: u32, height: u32) {
+    sys.gpu.resize_screen(width, height);
+  }
   fn update(&mut self, sys: SystemInfo) {
     self.fps = 1.0 / sys.frame_delta.as_secs_f32();
     println!("FPS: {}", self.fps);
