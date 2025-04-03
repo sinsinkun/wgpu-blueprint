@@ -9,7 +9,7 @@ use winit::{
   event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
 	keyboard::{PhysicalKey, KeyCode},
   platform::windows::IconExtWindows,
-  window::{Icon, Window, WindowId}
+  window::{Icon, Window, WindowAttributes, WindowId}
 };
 
 use crate::utils::Vec2;
@@ -25,8 +25,6 @@ pub struct GpuAccess<'a> {
 	pub screen_surface: Surface<'a>,
 	pub screen_config: SurfaceConfiguration,
 	pub screen_format: TextureFormat,
-	// needs to be dropped after Surface, may cause crash otherwise
-	pub window: Arc<Window>,
 }
 #[allow(unused)]
 impl GpuAccess<'_> {
@@ -97,22 +95,39 @@ impl MouseState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct SystemAccess<'a, 'b> {
-	pub gpu: &'a mut GpuAccess<'b>,
-  pub kb_inputs: &'a HashMap<KeyCode, MKBState>,
-  pub m_inputs: &'a MouseState,
-  pub frame_delta: &'a Duration,
-  pub win_size: Vec2,
+pub struct SystemAccess {
+	input_cache: HashMap<KeyCode, MKBState>,
+	mouse_cache: MouseState,
+  frame_delta: Duration,
+	last_frame: Instant,
+  window_size: (u32, u32),
+	pub debug: bool,
+	exit: bool,
 }
 #[allow(dead_code)]
-impl SystemAccess<'_, '_> {
-	fn time_delta(&self) -> f32 {
+impl SystemAccess {
+	pub fn kb_inputs(&self) -> &HashMap<KeyCode, MKBState> {
+		&self.input_cache
+	}
+	pub fn m_inputs(&self) -> &MouseState {
+		&self.mouse_cache
+	}
+	pub fn time_delta(&self) -> f32 {
 		self.frame_delta.as_secs_f32()
 	}
-	fn win_center(&self) -> Vec2 {
-		let x = self.win_size.x / 2.0;
-		let y = self.win_size.y / 2.0;
+	pub fn fps(&self) -> f32 {
+		1.0 / self.frame_delta.as_secs_f32()
+	}
+	pub fn win_size(&self) -> Vec2 {
+		Vec2::from_u32_tuple(self.window_size)
+	}
+	pub fn win_center(&self) -> Vec2 {
+		let x = self.window_size.0 as f32 / 2.0;
+		let y = self.window_size.1 as f32 / 2.0;
 		Vec2::new(x, y)
+	}
+	pub fn request_exit(&mut self) {
+		self.exit = true;
 	}
 }
 
@@ -121,13 +136,11 @@ pub trait AppBase {
 	/// create initial app state (without winit or wgpu assets)
 	fn new() -> Self where Self: Sized;
 	/// actions to take on initialization (after window creation + gpu is successful)
-	fn init(&mut self, sys: SystemAccess);
+	fn init(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess);
 	/// actions to take when screen resizes (asynchronous with update call)
-	fn resize(&mut self, sys: SystemAccess, width: u32, height: u32) {}
+	fn resize(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess, width: u32, height: u32) {}
 	/// actions to take per frame
-	fn update(&mut self, sys: SystemAccess);
-	/// pass back call to invoke exit
-	fn request_exit(&self) -> bool { false }
+	fn update(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess);
   /// actions to take after exiting event loop
 	fn cleanup(&mut self) {}
 }
@@ -167,40 +180,63 @@ impl Default for WinitConfig {
 
 #[derive(Debug)]
 struct WinitApp<'a, T> {
-	setup: WinitConfig,
 	wait_duration: Duration,
+	window_attributes: WindowAttributes,
 	gpu: Option<GpuAccess<'a>>,
-	// input handling
-	window_size: (u32, u32),
-	input_cache: HashMap<KeyCode, MKBState>,
-  mouse_cache: MouseState,
-	frame_delta: Duration,
-	last_frame: Instant,
+	windows: Vec<Arc<Window>>,
+	active_window: usize,
 	// custom app definition
+	sys: SystemAccess,
 	app: T,
 }
 impl<'a, T: AppBase> WinitApp<'a, T> {
   fn new(config: WinitConfig, app: T) -> Self {
 		// convert fps to wait duration
-		let mut mms = 1000;
-		if let Some(n) = config.max_fps {
-			mms = 1000000 / n;
-		}
-    Self {
-			wait_duration: Duration::from_micros(mms.into()),
-			gpu: None,
-			app,
+		let mms = if let Some(n) = config.max_fps { 1000000 / n } else { 0 };
+		// create window attributes
+		let icon = match &config.icon {
+			Some(str) => {
+				match Icon::from_path(str, None) {
+					Ok(ico) => Some(ico),
+					Err(e) => {
+						println!("Failed to open icon: {:?}", e);
+						None
+					}
+				}
+			},
+			None => None
+		};
+		let window_attributes = Window::default_attributes()
+			.with_min_inner_size(PhysicalSize::new(config.min_size.0, config.min_size.1))
+			.with_inner_size(PhysicalSize::new(config.size.0, config.size.1))
+			.with_resizable(config.resizable)
+			.with_window_icon(icon)
+			.with_title(config.title.as_str());
+		// create shared data between winit and user app
+		let sys = SystemAccess {
 			input_cache: HashMap::new(),
 			mouse_cache: MouseState::new(),
 			frame_delta: Duration::from_micros(0),
 			last_frame: Instant::now(),
 			window_size: config.size,
-			setup: config,
+			debug: config.debug,
+			exit: false,
+		};
+    Self {
+			window_attributes,
+			wait_duration: Duration::from_micros(mms.into()),
+			gpu: None,
+			windows: Vec::new(),
+			active_window: 0,
+			sys,
+			app,
     }
   }
-	async fn wgpu_init(&mut self, win: Window) {
+	fn cur_window(&self) -> &Arc<Window> {
+		&self.windows[self.active_window]
+	}
+	async fn wgpu_init(&mut self, win: Arc<Window>) {
 		let size = win.inner_size();
-		let window_handle = Arc::new(win);
 
 		// The instance is a handle to our GPU
     // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -208,7 +244,7 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 			backends: wgpu::Backends::PRIMARY,
 			..Default::default()
 		});
-    let surface = instance.create_surface(window_handle.clone()).unwrap();
+    let surface = instance.create_surface(win).unwrap();
 
     // handle for graphics card
     let adapter = instance.request_adapter(
@@ -256,11 +292,10 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 		// invoked via resize call
 		// surface.configure(&device, &config);
 
-		if self.setup.debug {
+		if self.sys.debug {
 			println!("Sucessfully linked gpu: {:?}", adapter.get_info());
 		}
 		self.gpu = Some(GpuAccess {
-			window: window_handle,
 			device,
 			queue,
 			screen_surface: surface,
@@ -273,41 +308,19 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
   // initialization
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		if self.gpu.is_some() {
-			if self.setup.debug {
+			if self.sys.debug {
 				println!("Resuming wrapper");
 			}
 			return;
 		}
-		let icon = match &self.setup.icon {
-			Some(str) => {
-				match Icon::from_path(str, None) {
-					Ok(ico) => Some(ico),
-					Err(e) => {
-						println!("Failed to open icon: {:?}", e);
-						None
-					}
-				}
-			},
-			None => None
-		};
-		let window_attributes = Window::default_attributes()
-			.with_min_inner_size(PhysicalSize::new(self.setup.min_size.0, self.setup.min_size.1))
-			.with_inner_size(PhysicalSize::new(self.setup.size.0, self.setup.size.1))
-			.with_resizable(self.setup.resizable)
-			.with_window_icon(icon)
-			.with_title(self.setup.title.as_str());
-		match event_loop.create_window(window_attributes) {
+		match event_loop.create_window(self.window_attributes.clone()) {
 			Ok(win) => {
 				win.set_ime_allowed(true);
-				pollster::block_on(self.wgpu_init(win));
-				self.app.init(SystemAccess { 
-					gpu: self.gpu.as_mut().unwrap(),
-					kb_inputs: &HashMap::new(),
-					m_inputs: &MouseState::new(),
-					frame_delta: &Duration::from_micros(0),
-					win_size: Vec2::new(self.setup.size.0 as f32, self.setup.size.1 as f32),
-				});
-				if self.setup.debug {
+				let window_handle = Arc::new(win);
+				pollster::block_on(self.wgpu_init(window_handle.clone()));
+				self.windows.push(window_handle);
+				self.app.init(&mut self.sys, self.gpu.as_mut().unwrap());
+				if self.sys.debug {
 					println!("Sucessfully launched wrapper");
 				}
 			}
@@ -318,16 +331,15 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 		};
 	}
   // system updates
-  fn new_events(&mut self, event_loop: &ActiveEventLoop, _cause: StartCause) {
-		if self.app.request_exit() {
-			event_loop.exit();
-		}
+  fn new_events(&mut self, _event_loop: &ActiveEventLoop, _cause: StartCause) {
     // calculate time data
 		let now = Instant::now();
-		self.frame_delta = now - self.last_frame;
-		if self.frame_delta > self.wait_duration {
-			self.last_frame = now;
-			self.gpu.as_ref().unwrap().window.request_redraw();
+		self.sys.frame_delta = now - self.sys.last_frame;
+		if self.sys.frame_delta > self.wait_duration {
+			self.sys.last_frame = now;
+			for win in &self.windows {
+				win.request_redraw();
+			}
 		}
   }
   // handle events
@@ -338,57 +350,51 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				event_loop.exit();
 			}
 			WindowEvent::Resized( phys_size, .. ) => {
-				self.window_size = phys_size.into();
+				self.sys.window_size = phys_size.into();
 				if let Some(r) = &mut self.gpu {
-					self.app.resize(SystemAccess {
-						gpu: r,
-						kb_inputs: &self.input_cache,
-						m_inputs: &self.mouse_cache,
-						frame_delta: &self.frame_delta,
-						win_size: Vec2::from_u32_tuple(self.window_size),
-					}, phys_size.width, phys_size.height);
+					self.app.resize(&mut self.sys, r, phys_size.width, phys_size.height);
 				}
 			}
 			WindowEvent::KeyboardInput { event: KeyEvent { physical_key: key, state, repeat, .. }, .. } => {
 				// add key to input cache
 				if let PhysicalKey::Code(x) = key {
 					if state.is_pressed() && !repeat {
-						self.input_cache.insert(x, MKBState::Pressed);
+						self.sys.input_cache.insert(x, MKBState::Pressed);
 					}
 					else if !state.is_pressed() {
-						self.input_cache.insert(x, MKBState::Released);
+						self.sys.input_cache.insert(x, MKBState::Released);
 					}
 				}
 			}
 			WindowEvent::MouseInput { state, button, .. } => {
         if button == MouseButton::Left {
           if state.is_pressed() {
-            self.mouse_cache.left = MKBState::Pressed;
+            self.sys.mouse_cache.left = MKBState::Pressed;
           }
           else if !state.is_pressed() {
-            self.mouse_cache.left = MKBState::Released;
+            self.sys.mouse_cache.left = MKBState::Released;
           }
         }
         if button == MouseButton::Right {
           if state.is_pressed() {
-            self.mouse_cache.right = MKBState::Pressed;
+            self.sys.mouse_cache.right = MKBState::Pressed;
           }
           else if !state.is_pressed() {
-            self.mouse_cache.right = MKBState::Released;
+            self.sys.mouse_cache.right = MKBState::Released;
           }
         }
       }
 			WindowEvent::MouseWheel { delta, .. } => {
 				match delta {
 					MouseScrollDelta::LineDelta(_x, y) => {
-						self.mouse_cache.scroll += y;
+						self.sys.mouse_cache.scroll += y;
 					}
 					MouseScrollDelta::PixelDelta(_ps) => ()
 				}
 			}
 			WindowEvent::CursorMoved { position, .. } => {
-        self.mouse_cache.instp.x = position.x as f32;
-				self.mouse_cache.instp.y = position.y as f32;
+        self.sys.mouse_cache.instp.x = position.x as f32;
+				self.sys.mouse_cache.instp.y = position.y as f32;
       }
       // WindowEvent::CursorLeft { .. } => {}
 			// WindowEvent::CursorEntered { .. } => {}
@@ -396,11 +402,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				match ime {
 					Ime::Enabled => {
 						println!("Enabled IME inputs");
-						if let Some(gp) = &self.gpu {
-							let pos: PhysicalPosition<f32> = self.mouse_cache.position.as_array().into();
-							let size = PhysicalSize::new(100, 100);
-							gp.window.set_ime_cursor_area(pos, size);
-						}
+						let pos: PhysicalPosition<f32> = self.sys.mouse_cache.position.as_array().into();
+						let size = PhysicalSize::new(100, 100);
+						self.cur_window().set_ime_cursor_area(pos, size);
 					}
 					Ime::Commit(chr) => {
 						println!("Committing character {chr}");
@@ -411,41 +415,37 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			WindowEvent::RedrawRequested => {
 				// app  update actions
 				if let Some(r) = &mut self.gpu {
-					self.mouse_cache.frame_sync();
-					self.app.update(SystemAccess {
-						gpu: r,
-						kb_inputs: &self.input_cache,
-						m_inputs: &self.mouse_cache,
-						frame_delta: &self.frame_delta,
-						win_size: Vec2::from_u32_tuple(self.window_size),
-					});
+					self.sys.mouse_cache.frame_sync();
+					self.app.update(&mut self.sys, r);
 				}
+				// respond to app requests
+				if self.sys.exit { event_loop.exit(); }
 
 				// clean up input cache
 				let mut rm_k: Vec<KeyCode> = Vec::new();
-				for k in &mut self.input_cache.iter_mut() {
+				for k in &mut self.sys.input_cache.iter_mut() {
 					if *k.1 == MKBState::Pressed { *k.1 = MKBState::Down; }
 					else if *k.1 == MKBState::Released { rm_k.push(*k.0); }
 				}
 				for k in rm_k {
-					self.input_cache.remove(&k);
+					self.sys.input_cache.remove(&k);
 				}
 
 				// clean up mouse cache
-				self.mouse_cache.scroll = 0.0;
-				if self.mouse_cache.left == MKBState::Pressed {
-					self.mouse_cache.left = MKBState::Down;
-				} else if self.mouse_cache.left == MKBState::Released {
-					self.mouse_cache.left = MKBState::None;
+				self.sys.mouse_cache.scroll = 0.0;
+				if self.sys.mouse_cache.left == MKBState::Pressed {
+					self.sys.mouse_cache.left = MKBState::Down;
+				} else if self.sys.mouse_cache.left == MKBState::Released {
+					self.sys.mouse_cache.left = MKBState::None;
 				}
-				if self.mouse_cache.right == MKBState::Pressed {
-					self.mouse_cache.right = MKBState::Down;
-				} else if self.mouse_cache.right == MKBState::Released {
-					self.mouse_cache.right = MKBState::None;
+				if self.sys.mouse_cache.right == MKBState::Pressed {
+					self.sys.mouse_cache.right = MKBState::Down;
+				} else if self.sys.mouse_cache.right == MKBState::Released {
+					self.sys.mouse_cache.right = MKBState::None;
 				}
 
 				// wait until (doesn't work?)
-				if self.setup.max_fps.is_some() {
+				if self.wait_duration > Duration::from_micros(0) {
 					event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + self.wait_duration));
 				}
 			}
@@ -454,7 +454,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
   }
 	// note: not all devices support suspend events
 	fn suspended(&mut self, _evt_loop: &ActiveEventLoop) {
-		if self.setup.debug {
+		if self.sys.debug {
 			println!("Suspending wrapper");
 		}
 	}
@@ -464,7 +464,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 		if let Some(r) = &self.gpu {
 			r.device.destroy();
 		}
-		if self.setup.debug {
+		if self.sys.debug {
 			println!("Exiting wrapper");
 		}
 	}

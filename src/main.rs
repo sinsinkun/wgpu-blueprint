@@ -4,32 +4,28 @@ use winit::keyboard::KeyCode;
 mod utils;
 use utils::{Vec2, Vec3};
 mod wrapper;
-use wrapper::{launch, AppBase, SystemAccess, WinitConfig};
+use wrapper::{launch, AppBase, GpuAccess, SystemAccess, WinitConfig};
 mod render;
 use render::{ObjPipeline, Primitives, RenderCamera, RenderColor, RenderObjectSetup, RenderObjectUpdate};
 
 #[derive(Debug)]
 pub struct App {
-  fps: f32,
-  exiting: bool,
   obj_pipe: Option<ObjPipeline>,
   camera: RenderCamera,
 }
 impl AppBase for App {
   fn new() -> Self {
     Self {
-      fps: 0.0,
-      exiting: false,
       obj_pipe: None,
       camera: RenderCamera::default(),
     }
   }
-  fn init(&mut self, sys: SystemAccess) {
+  fn init(&mut self, sys:  &mut SystemAccess, gpu: &mut GpuAccess) {
     println!("Hello world");
-    self.camera = RenderCamera::new_persp(60.0, 1.0, 1000.0, sys.win_size);
-    let mut objp = ObjPipeline::new(&sys.gpu.device, sys.gpu.screen_format, false);
+    self.camera = RenderCamera::new_persp(60.0, 1.0, 1000.0, sys.win_size());
+    let mut objp = ObjPipeline::new(&gpu.device, gpu.screen_format, false);
     let (verts1, index1) = Primitives::cube_indexed(15.0, 10.0, 20.0);
-    objp.add_object(&sys.gpu.device, &sys.gpu.queue, RenderObjectSetup {
+    objp.add_object(&gpu.device, &gpu.queue, RenderObjectSetup {
       vertex_data: verts1,
       indices: index1,
       camera: Some(&self.camera),
@@ -37,20 +33,18 @@ impl AppBase for App {
     });
     self.obj_pipe = Some(objp);
   }
-  fn resize(&mut self, sys: SystemAccess, width: u32, height: u32) {
-    sys.gpu.resize_screen(width, height);
+  fn resize(&mut self, _sys: &mut SystemAccess, gpu: &mut GpuAccess, width: u32, height: u32) {
+    gpu.resize_screen(width, height);
     self.camera.target_size = vec2f!(width as f32, height as f32);
   }
-  fn update(&mut self, sys: SystemAccess) {
-    self.fps = 1.0 / sys.frame_delta.as_secs_f32();
-
-    if sys.kb_inputs.contains_key(&KeyCode::Escape) {
-      self.exiting = true;
+  fn update(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess) {
+    if sys.kb_inputs().contains_key(&KeyCode::Escape) {
+      sys.request_exit();
     }
 
     // update objects
     if let Some(p) = &mut self.obj_pipe {
-      p.update_object(0, &sys.gpu.queue, RenderObjectUpdate {
+      p.update_object(0, &gpu.queue, RenderObjectUpdate {
         translate: vec3f!(20.0, 10.0, -40.0),
         camera: Some(&self.camera),
         ..Default::default()
@@ -58,7 +52,7 @@ impl AppBase for App {
     }
 
     // render
-    match sys.gpu.begin_render() {
+    match gpu.begin_render() {
       Ok((mut encoder, surface)) => {
         let target = surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
         {
@@ -76,23 +70,20 @@ impl AppBase for App {
           });
           if let Some(p) = &self.obj_pipe { p.render(&mut pass); }
         }
-        sys.gpu.end_render(encoder, surface);
+        gpu.end_render(encoder, surface);
       }
       Err(SurfaceError::Lost | SurfaceError::Outdated) => {
         println!("Err: surface was lost or outdated. Attempting to re-connect");
-        sys.gpu.resize_screen(sys.win_size.x as u32, sys.win_size.y as u32);
+        gpu.resize_screen(sys.win_size().x as u32, sys.win_size().y as u32);
       }
       Err(SurfaceError::OutOfMemory) => {
         println!("Err: Out of memory. Exiting");
-        self.exiting = true;
+        sys.request_exit();
       }
       Err(e) => {
         println!("Err: {:?}", e);
       }
     }
-  }
-  fn request_exit(&self) -> bool {
-    self.exiting
   }
   fn cleanup(&mut self) {
     if let Some(p) = &mut self.obj_pipe {
