@@ -17,15 +17,18 @@ use crate::utils::Vec2;
 // --- --- --- --- --- --- --- --- --- //
 // --- --- ---- APP SETUP ---- --- --- //
 // --- --- --- --- --- --- --- --- --- //
-#[allow(unused)]
+
 #[derive(Debug)]
 pub struct GpuAccess<'a> {
-	pub window: Arc<Window>,
 	pub device: Device,
 	pub queue: Queue,
 	pub screen_surface: Surface<'a>,
 	pub screen_config: SurfaceConfiguration,
+	pub screen_format: TextureFormat,
+	// needs to be dropped after Surface, may cause crash otherwise
+	pub window: Arc<Window>,
 }
+#[allow(unused)]
 impl GpuAccess<'_> {
 	pub fn begin_render(&mut self) -> Result<(wgpu::CommandEncoder, wgpu::SurfaceTexture), wgpu::SurfaceError> {
 		let output = self.screen_surface.get_current_texture()?;
@@ -36,8 +39,7 @@ impl GpuAccess<'_> {
 	}
 	pub fn clear(&self, encoder: &mut wgpu::CommandEncoder, surface: &wgpu::SurfaceTexture, color: Option<wgpu::Color>) {
 		let clear_color = color.unwrap_or(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0});
-		let tvd = wgpu::TextureViewDescriptor::default();
-    let target = surface.texture.create_view(&tvd);
+    let target = surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
 		let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
 			label: Some("clear-render"),
 			color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -62,7 +64,6 @@ impl GpuAccess<'_> {
 	}
 }
 
-#[allow(unused)]
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum MKBState { None, Pressed, Down, Released }
 
@@ -264,6 +265,7 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 			queue,
 			screen_surface: surface,
 			screen_config: config,
+			screen_format: surface_format,
 		});
 	}
 }
@@ -459,6 +461,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	// clean up (if necessary)
 	fn exiting(&mut self, _evt_loop: &ActiveEventLoop) {
 		self.app.cleanup();
+		if let Some(r) = &self.gpu {
+			r.device.destroy();
+		}
 		if self.setup.debug {
 			println!("Exiting wrapper");
 		}

@@ -2,6 +2,8 @@
 
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
+pub const PI: f32 = 3.14159265;
+
 mod lin_alg;
 pub use lin_alg::*;
 mod physics;

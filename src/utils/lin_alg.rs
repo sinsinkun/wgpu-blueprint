@@ -3,7 +3,7 @@
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
 use bytemuck::{Pod, Zeroable};
 
-pub const PI: f32 = 3.14159265;
+use super::PI;
 
 /**
  * Note: These matrices are in column major order, as per wgpu requirements. 
