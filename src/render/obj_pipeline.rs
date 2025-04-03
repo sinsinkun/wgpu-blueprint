@@ -7,7 +7,9 @@ use wgpu::{
 };
 
 use super::{
-  build_default_bind_group, build_default_bind_group_layout, build_default_shader_module, build_primitive_state, build_shader_module, create_mvp, RenderObject, RenderObjectSetup, RenderObjectUpdate, RenderVertex
+  build_default_bind_group, build_default_bind_group_layout, build_default_shader_module,
+  build_primitive_state, build_shader_module, create_mvp, RenderObject, RenderObjectSetup,
+  RenderObjectUpdate, RenderVertex
 };
 
 #[derive(Debug)]
