@@ -73,6 +73,7 @@ pub struct MouseState {
   position: Vec2,
   pos_delta: Vec2,
 	scroll: f32,
+	cursor_in: bool,
 }
 impl MouseState {
   fn new() -> Self {
@@ -83,6 +84,7 @@ impl MouseState {
       position: Vec2::new(400.0, 300.0),
       pos_delta: Vec2::new(0.0, 0.0),
 			scroll: 0.0,
+			cursor_in: true,
     }
   }
   fn frame_sync(&mut self) {
@@ -183,8 +185,7 @@ struct WinitApp<'a, T> {
 	wait_duration: Duration,
 	window_attributes: WindowAttributes,
 	gpu: Option<GpuAccess<'a>>,
-	windows: Vec<Arc<Window>>,
-	active_window: usize,
+	windows: HashMap<WindowId, Arc<Window>>,
 	// custom app definition
 	sys: SystemAccess,
 	app: T,
@@ -226,14 +227,13 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 			window_attributes,
 			wait_duration: Duration::from_micros(mms.into()),
 			gpu: None,
-			windows: Vec::new(),
-			active_window: 0,
+			windows: HashMap::new(),
 			sys,
 			app,
     }
   }
-	fn cur_window(&self) -> &Arc<Window> {
-		&self.windows[self.active_window]
+	fn cur_window(&self, id: &WindowId) -> Option<&Arc<Window>> {
+		self.windows.get(id)
 	}
 	async fn wgpu_init(&mut self, win: Arc<Window>) {
 		let size = win.inner_size();
@@ -279,6 +279,10 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 				.unwrap_or(surface_caps.formats[0])
 		};
 
+		if self.sys.debug {
+			println!("Surface format: {:?}", surface_format);
+		}
+
 		let config = SurfaceConfiguration {
       usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
       format: surface_format,
@@ -309,20 +313,21 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		if self.gpu.is_some() {
 			if self.sys.debug {
-				println!("Resuming wrapper");
+				println!("Resuming event loop");
 			}
 			return;
 		}
+		println!("Starting event loop");
 		match event_loop.create_window(self.window_attributes.clone()) {
 			Ok(win) => {
 				win.set_ime_allowed(true);
 				let window_handle = Arc::new(win);
 				pollster::block_on(self.wgpu_init(window_handle.clone()));
-				self.windows.push(window_handle);
-				self.app.init(&mut self.sys, self.gpu.as_mut().unwrap());
 				if self.sys.debug {
-					println!("Sucessfully launched wrapper");
+					println!("Successfully launched window {:?}", window_handle.id());
 				}
+				self.windows.insert(window_handle.id(), window_handle);
+				self.app.init(&mut self.sys, self.gpu.as_mut().unwrap());
 			}
 			Err(e) => {
 				println!("Failed to create window: {}", e);
@@ -338,12 +343,12 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 		if self.sys.frame_delta > self.wait_duration {
 			self.sys.last_frame = now;
 			for win in &self.windows {
-				win.request_redraw();
+				win.1.request_redraw();
 			}
 		}
   }
   // handle events
-	fn window_event(&mut self, event_loop: &ActiveEventLoop, _win_id: WindowId, event: WindowEvent) {
+	fn window_event(&mut self, event_loop: &ActiveEventLoop, win_id: WindowId, event: WindowEvent) {
 		match event {
 			WindowEvent::CloseRequested => {
 				// close if window is closed externally
@@ -351,6 +356,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			}
 			WindowEvent::Resized( phys_size, .. ) => {
 				self.sys.window_size = phys_size.into();
+				if self.sys.debug {
+					println!("Resized window {:?} - ({}, {})", win_id, phys_size.width, phys_size.height);
+				}
 				if let Some(r) = &mut self.gpu {
 					self.app.resize(&mut self.sys, r, phys_size.width, phys_size.height);
 				}
@@ -396,15 +404,22 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
         self.sys.mouse_cache.instp.x = position.x as f32;
 				self.sys.mouse_cache.instp.y = position.y as f32;
       }
-      // WindowEvent::CursorLeft { .. } => {}
-			// WindowEvent::CursorEntered { .. } => {}
+      WindowEvent::CursorLeft { .. } => {
+				self.sys.mouse_cache.cursor_in = false;
+			}
+			WindowEvent::CursorEntered { .. } => {
+				self.sys.mouse_cache.cursor_in = true;
+			}
 			WindowEvent::Ime(ime) => {
 				match ime {
 					Ime::Enabled => {
 						println!("Enabled IME inputs");
 						let pos: PhysicalPosition<f32> = self.sys.mouse_cache.position.as_array().into();
 						let size = PhysicalSize::new(100, 100);
-						self.cur_window().set_ime_cursor_area(pos, size);
+						match self.cur_window(&win_id) {
+							Some(w) => w.set_ime_cursor_area(pos, size),
+							None => println!("ERR: Could not find window for IME")
+						}
 					}
 					Ime::Commit(chr) => {
 						println!("Committing character {chr}");
@@ -444,7 +459,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 					self.sys.mouse_cache.right = MKBState::None;
 				}
 
-				// wait until (doesn't work?)
+				// wait until
 				if self.wait_duration > Duration::from_micros(0) {
 					event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + self.wait_duration));
 				}
@@ -455,7 +470,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	// note: not all devices support suspend events
 	fn suspended(&mut self, _evt_loop: &ActiveEventLoop) {
 		if self.sys.debug {
-			println!("Suspending wrapper");
+			println!("Suspending event loop");
 		}
 	}
 	// clean up (if necessary)
@@ -465,7 +480,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			r.device.destroy();
 		}
 		if self.sys.debug {
-			println!("Exiting wrapper");
+			println!("Exiting event loop");
 		}
 	}
 }
