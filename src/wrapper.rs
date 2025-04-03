@@ -317,7 +317,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			}
 			return;
 		}
-		println!("Starting event loop");
+		if self.sys.debug {
+			println!("Starting event loop");
+		}
 		match event_loop.create_window(self.window_attributes.clone()) {
 			Ok(win) => {
 				win.set_ime_allowed(true);

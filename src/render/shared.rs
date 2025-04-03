@@ -309,8 +309,8 @@ impl Default for RenderObjectSetup<'_> {
 pub fn build_shader_module(device: &Device, embedded_shader: u32, wgsl_txt: Option<&str>) -> ShaderModule {
   // translate shader
   let shader = match embedded_shader {
-    1 => { "todo" }
-    2 => { "todo" }
+    1 => { include_str!("shaders/flat_color.wgsl") }
+    2 => { include_str!("shaders/overlay.wgsl") }
     _ => {
       // 0 leads here too
       wgsl_txt.unwrap_or(include_str!("shaders/default.wgsl"))

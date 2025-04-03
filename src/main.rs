@@ -23,7 +23,7 @@ impl AppBase for App {
   fn init(&mut self, sys:  &mut SystemAccess, gpu: &mut GpuAccess) {
     println!("Hello world");
     self.camera = RenderCamera::new_persp(60.0, 1.0, 1000.0, sys.win_size());
-    let mut objp = ObjPipeline::new(&gpu.device, gpu.screen_format, false);
+    let mut objp = ObjPipeline::new(&gpu.device, gpu.screen_format, true, false);
     let (verts1, index1) = Primitives::cube_indexed(15.0, 10.0, 20.0);
     objp.add_object(&gpu.device, &gpu.queue, RenderObjectSetup {
       vertex_data: verts1,
@@ -45,10 +45,10 @@ impl AppBase for App {
     // update objects
     if let Some(p) = &mut self.obj_pipe {
       p.update_object(0, &gpu.queue, RenderObjectUpdate {
-        translate: vec3f!(20.0, 10.0, -40.0),
+        translate: vec3f!(15.0, 10.0, -40.0),
         camera: Some(&self.camera),
         ..Default::default()
-      });
+      }.with_color(RenderColor::GRAY));
     }
 
     // render
@@ -62,7 +62,7 @@ impl AppBase for App {
               view: &target,
               resolve_target: None,
               ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(RenderColor::rgb(2, 17, 36).into()),
+                load: wgpu::LoadOp::Clear(RenderColor::rgb(1, 2, 5).into()),
                 store: wgpu::StoreOp::Store
               }
             })],

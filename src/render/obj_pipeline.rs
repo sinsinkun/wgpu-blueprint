@@ -18,8 +18,12 @@ pub struct ObjPipeline {
   pub objects: Vec<RenderObject>,
 }
 impl ObjPipeline {
-  pub fn new(device: &Device, target_format: TextureFormat, use_depth: bool) -> Self {
-    let shader_mod = build_default_shader_module(device);
+  pub fn new(device: &Device, target_format: TextureFormat, use_flat_color: bool, use_depth: bool) -> Self {
+    let shader_mod = if use_flat_color {
+      build_shader_module(device, 1, None)
+    } else {
+      build_default_shader_module(device)
+    };
     let bind_group0_layout = build_default_bind_group_layout(device);
     let bind_group_container: Vec<&BindGroupLayout> = vec![&bind_group0_layout];
 
