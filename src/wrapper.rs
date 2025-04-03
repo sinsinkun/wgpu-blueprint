@@ -97,7 +97,7 @@ impl MouseState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct SystemInfo<'a, 'b> {
+pub struct SystemAccess<'a, 'b> {
 	pub gpu: &'a mut GpuAccess<'b>,
   pub kb_inputs: &'a HashMap<KeyCode, MKBState>,
   pub m_inputs: &'a MouseState,
@@ -105,7 +105,7 @@ pub struct SystemInfo<'a, 'b> {
   pub win_size: Vec2,
 }
 #[allow(dead_code)]
-impl SystemInfo<'_, '_> {
+impl SystemAccess<'_, '_> {
 	fn time_delta(&self) -> f32 {
 		self.frame_delta.as_secs_f32()
 	}
@@ -121,11 +121,11 @@ pub trait AppBase {
 	/// create initial app state (without winit or wgpu assets)
 	fn new() -> Self where Self: Sized;
 	/// actions to take on initialization (after window creation + gpu is successful)
-	fn init(&mut self, sys: SystemInfo);
+	fn init(&mut self, sys: SystemAccess);
 	/// actions to take when screen resizes (asynchronous with update call)
-	fn resize(&mut self, sys: SystemInfo, width: u32, height: u32) {}
+	fn resize(&mut self, sys: SystemAccess, width: u32, height: u32) {}
 	/// actions to take per frame
-	fn update(&mut self, sys: SystemInfo);
+	fn update(&mut self, sys: SystemAccess);
 	/// pass back call to invoke exit
 	fn request_exit(&self) -> bool { false }
   /// actions to take after exiting event loop
@@ -300,7 +300,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			Ok(win) => {
 				win.set_ime_allowed(true);
 				pollster::block_on(self.wgpu_init(win));
-				self.app.init(SystemInfo { 
+				self.app.init(SystemAccess { 
 					gpu: self.gpu.as_mut().unwrap(),
 					kb_inputs: &HashMap::new(),
 					m_inputs: &MouseState::new(),
@@ -340,7 +340,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			WindowEvent::Resized( phys_size, .. ) => {
 				self.window_size = phys_size.into();
 				if let Some(r) = &mut self.gpu {
-					self.app.resize(SystemInfo {
+					self.app.resize(SystemAccess {
 						gpu: r,
 						kb_inputs: &self.input_cache,
 						m_inputs: &self.mouse_cache,
@@ -412,7 +412,7 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				// app  update actions
 				if let Some(r) = &mut self.gpu {
 					self.mouse_cache.frame_sync();
-					self.app.update(SystemInfo {
+					self.app.update(SystemAccess {
 						gpu: r,
 						kb_inputs: &self.input_cache,
 						m_inputs: &self.mouse_cache,

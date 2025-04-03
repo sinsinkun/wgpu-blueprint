@@ -4,7 +4,7 @@ use winit::keyboard::KeyCode;
 mod utils;
 use utils::{Vec2, Vec3};
 mod wrapper;
-use wrapper::{launch, AppBase, SystemInfo, WinitConfig};
+use wrapper::{launch, AppBase, SystemAccess, WinitConfig};
 mod render;
 use render::{ObjPipeline, Primitives, RenderCamera, RenderColor, RenderObjectSetup, RenderObjectUpdate};
 
@@ -24,7 +24,7 @@ impl AppBase for App {
       camera: RenderCamera::default(),
     }
   }
-  fn init(&mut self, sys: SystemInfo) {
+  fn init(&mut self, sys: SystemAccess) {
     println!("Hello world");
     self.camera = RenderCamera::new_persp(60.0, 1.0, 1000.0, sys.win_size);
     let mut objp = ObjPipeline::new(&sys.gpu.device, sys.gpu.screen_format, false);
@@ -37,11 +37,11 @@ impl AppBase for App {
     });
     self.obj_pipe = Some(objp);
   }
-  fn resize(&mut self, sys: SystemInfo, width: u32, height: u32) {
+  fn resize(&mut self, sys: SystemAccess, width: u32, height: u32) {
     sys.gpu.resize_screen(width, height);
     self.camera.target_size = vec2f!(width as f32, height as f32);
   }
-  fn update(&mut self, sys: SystemInfo) {
+  fn update(&mut self, sys: SystemAccess) {
     self.fps = 1.0 / sys.frame_delta.as_secs_f32();
 
     if sys.kb_inputs.contains_key(&KeyCode::Escape) {
