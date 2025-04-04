@@ -6,3 +6,5 @@ mod primitives;
 pub use primitives::*;
 mod obj_pipeline;
 pub use obj_pipeline::*;
+mod text_engine;
+pub use text_engine::*;

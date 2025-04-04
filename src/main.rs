@@ -6,29 +6,34 @@ use utils::{Vec2, Vec3};
 mod wrapper;
 use wrapper::{launch, AppBase, GpuAccess, SystemAccess, WinitConfig};
 mod render;
-use render::{ObjPipeline, Primitives, RenderCamera, RenderColor, RenderObjectSetup, RenderObjectUpdate};
+use render::{ObjPipeline, Primitives, RenderCamera, RenderColor, RenderObjectSetup, RenderObjectUpdate, TextEngine};
 
 #[derive(Debug)]
 pub struct App {
   obj_pipe: Option<ObjPipeline>,
   camera: RenderCamera,
+  text_engine: TextEngine,
 }
 impl AppBase for App {
   fn new() -> Self {
     Self {
       obj_pipe: None,
       camera: RenderCamera::default(),
+      text_engine: TextEngine::new(),
     }
   }
   fn init(&mut self, sys:  &mut SystemAccess, gpu: &mut GpuAccess) {
     println!("Hello world");
     self.camera = RenderCamera::new_persp(60.0, 1.0, 1000.0, sys.win_size());
-    let mut objp = ObjPipeline::new(&gpu.device, gpu.screen_format, true, false);
+    let word_tx = self.text_engine.create_texture(&gpu.device, &gpu.queue, "ネタバレ Please help me", (300, 200));
+
+    let mut objp = ObjPipeline::new(&gpu.device, gpu.screen_format, false, false);
     let (verts1, index1) = Primitives::cube_indexed(15.0, 10.0, 20.0);
     objp.add_object(&gpu.device, &gpu.queue, RenderObjectSetup {
       vertex_data: verts1,
       indices: index1,
       camera: Some(&self.camera),
+      texture2: Some(word_tx),
       ..Default::default()
     });
     self.obj_pipe = Some(objp);
@@ -45,7 +50,7 @@ impl AppBase for App {
     // update objects
     if let Some(p) = &mut self.obj_pipe {
       p.update_object(0, &gpu.queue, RenderObjectUpdate {
-        translate: vec3f!(15.0, 10.0, -40.0),
+        translate: vec3f!(5.0, -10.0, -25.0),
         camera: Some(&self.camera),
         ..Default::default()
       }.with_color(RenderColor::GRAY));
