@@ -95,6 +95,15 @@ impl Into<[f32; 4]> for RenderColor {
     [self.r, self.g, self.b, self.a]
   }
 }
+impl Into<[u8; 4]> for RenderColor {
+  fn into(self) -> [u8; 4] {
+    let r = f32::round(self.r * 255.0);
+    let g = f32::round(self.g * 255.0);
+    let b = f32::round(self.b * 255.0);
+    let a = f32::round(self.a * 255.0);
+    [r as u8, g as u8, b as u8, a as u8]
+  }
+}
 impl Into<wgpu::Color> for RenderColor {
   fn into(self) -> wgpu::Color {
     wgpu::Color {

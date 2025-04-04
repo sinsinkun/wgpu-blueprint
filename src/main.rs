@@ -25,7 +25,10 @@ impl AppBase for App {
   fn init(&mut self, sys:  &mut SystemAccess, gpu: &mut GpuAccess) {
     println!("Hello world");
     self.camera = RenderCamera::new_persp(45.0, 1.0, 1000.0, sys.win_size());
-    let word_tx = self.text_engine.create_texture(&gpu.device, &gpu.queue, "Hello ネタバレ World", 80.0, (800, 600));
+    let word_tx = self.text_engine.create_texture(
+      &gpu.device, &gpu.queue, "Hello ネタバレ World let there be text",
+      80.0, RenderColor::rgb(10, 10, 20).into(), Some(800.0), Some(600.0)
+    );
 
     let mut objp = ObjPipeline::new(&gpu.device, gpu.screen_format, false, false);
     let (verts1, index1) = Primitives::rect_indexed(15.0, 10.0, 0.0);
