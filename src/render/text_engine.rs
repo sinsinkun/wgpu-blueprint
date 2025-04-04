@@ -16,10 +16,13 @@ impl TextEngine {
       swash_cache,
     }
   }
-  pub fn create_texture(&mut self, device: &Device, queue: &Queue, text: &str, size: (u32, u32)) -> Texture {
-    let mut text_buffer = Buffer::new(&mut self.font_system, Metrics::new(30.0, 34.0));
+  pub fn create_texture(&mut self, device: &Device, queue: &Queue, text: &str, text_size: f32, size: (u32, u32)) -> Texture {
+    // create text buffer for cosmic-text
+    let mut text_buffer = Buffer::new(&mut self.font_system, Metrics::new(text_size, f32::ceil(text_size * 1.05)));
+    text_buffer.size();
     text_buffer.set_size(&mut self.font_system, Some(size.0 as f32), None);
     text_buffer.set_text(&mut self.font_system, text, &Attrs::new(), Shaping::Advanced);
+    // create wgpu texture + bytedata buffer
     let texture_size = Extent3d {
       width: size.0,
       height: size.1,
@@ -35,18 +38,17 @@ impl TextEngine {
       label: Some("pixel_texture"),
       view_formats: &[]
     });
-    let mut pixel_buffer = vec![0; (texture_size.width * texture_size.height * 4) as usize];
+    let mut pixel_buffer: Vec<u8> = vec![0; (texture_size.width * texture_size.height * 4) as usize];
     text_buffer.draw(
       &mut self.font_system, 
       &mut self.swash_cache,
-      Color::rgb(255, 255, 255),
+      Color::rgb(41, 12, 170),
       |x, y, _w, _h, color| {
         let idx = (y * texture_size.width as i32 + x) * 4;
         if idx < 0 { return; }
         let idx = idx as usize;
         if idx > pixel_buffer.len() { return; }
         // draw pixel into buffer
-        if color.a() < 5 { return; }
         pixel_buffer[idx] = color.r();
         pixel_buffer[idx + 1] = color.g();
         pixel_buffer[idx + 2] = color.b();

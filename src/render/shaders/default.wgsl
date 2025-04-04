@@ -39,5 +39,6 @@ fn fragment_main(input: VertOut) -> @location(0) vec4f {
   // draw normal instead of texture if alpha < 0.0001
   tx1 = mix(tx1, vec4f(n, 1.0), step(tx1.a, 0.0001));
   // mix tx1 and tx2, tx2 overwrites tx1
-  return mix(tx1, tx2, 0.5);
+  let blend = mix(tx1, tx2, tx2.a);
+  return vec4f(blend.rgb, tx1.a);
 }
