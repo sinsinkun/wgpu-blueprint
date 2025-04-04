@@ -315,25 +315,28 @@ impl Default for RenderObjectSetup<'_> {
 // --- --- - PIPELINE HELPER - --- --- //
 // --- --- --- --- --- --- --- --- --- //
 
-pub fn build_shader_module(device: &Device, embedded_shader: u32, wgsl_txt: Option<&str>) -> ShaderModule {
+#[derive(Debug, Clone, Default)]
+pub enum ShaderType<'a> {
+  #[default]
+  Default,
+  FlatColor,
+  Overlay,
+  Custom(&'a str)
+}
+
+pub fn build_shader_module(device: &Device, shader_type: ShaderType) -> ShaderModule {
   // translate shader
-  let shader = match embedded_shader {
-    1 => { include_str!("shaders/flat_color.wgsl") }
-    2 => { include_str!("shaders/overlay.wgsl") }
-    _ => {
-      // 0 leads here too
-      wgsl_txt.unwrap_or(include_str!("shaders/default.wgsl"))
-    }
+  let shader = match shader_type {
+    ShaderType::FlatColor => include_str!("shaders/flat_color.wgsl"),
+    ShaderType::Overlay => include_str!("shaders/overlay.wgsl"),
+    ShaderType::Custom(s) => s,
+    _ => include_str!("shaders/default.wgsl")
   };
   // build render pipeline
   device.create_shader_module(ShaderModuleDescriptor {
     label: Some("shader-module"),
     source: ShaderSource::Wgsl(shader.into()),
   })
-}
-
-pub fn build_default_shader_module(device: &Device) -> ShaderModule {
-  build_shader_module(device, 0, None)
 }
 
 pub fn build_default_bind_group_layout(device: &Device) -> BindGroupLayout {
@@ -536,7 +539,7 @@ pub fn create_mvp(update: &RenderObjectUpdate) -> [f32; 48] {
   let w2 = cam.target_size.x / 2.0;
   let h2 = cam.target_size.y / 2.0;
   let proj = match cam.cam_type {
-    1 => Mat4::ortho(-w2, w2, -h2, h2, cam.near, cam.far),
+    1 => Mat4::ortho(-w2, w2, h2, -h2, cam.near, cam.far),
     2 => Mat4::perspective(cam.fov_y, w2/h2, cam.near, cam.far),
     _ => Mat4::identity().as_col_major_array()
   };

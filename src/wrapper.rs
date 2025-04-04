@@ -114,7 +114,10 @@ impl SystemAccess {
 	pub fn m_inputs(&self) -> &MouseState {
 		&self.mouse_cache
 	}
-	pub fn time_delta(&self) -> f32 {
+	pub fn time_delta(&self) -> Duration {
+		self.frame_delta
+	}
+	pub fn time_delta_sec(&self) -> f32 {
 		self.frame_delta.as_secs_f32()
 	}
 	pub fn fps(&self) -> f32 {

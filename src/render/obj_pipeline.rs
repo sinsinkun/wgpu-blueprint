@@ -1,15 +1,11 @@
 use wgpu::{
-  vertex_attr_array, BindGroupLayout, BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, 
-  BufferAddress, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState, 
-  DepthStencilState, Device, Face, FragmentState, IndexFormat, MultisampleState, PipelineCompilationOptions, 
-  PipelineLayoutDescriptor, PolygonMode, Queue, RenderPass, RenderPipeline, RenderPipelineDescriptor, StencilState, 
-  TextureFormat, VertexBufferLayout, VertexState, VertexStepMode
+  vertex_attr_array, BindGroupLayout, BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Device, Face, FragmentState, IndexFormat, MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, Queue, RenderPass, RenderPipeline, RenderPipelineDescriptor, StencilState, Texture, TextureFormat, VertexBufferLayout, VertexState, VertexStepMode
 };
 
 use super::{
-  build_default_bind_group, build_default_bind_group_layout, build_default_shader_module,
-  build_primitive_state, build_shader_module, create_mvp, RenderObject, RenderObjectSetup,
-  RenderObjectUpdate, RenderVertex
+  build_default_bind_group, build_default_bind_group_layout, build_primitive_state,
+  build_shader_module, create_mvp, RenderObject, RenderObjectSetup,
+  RenderObjectUpdate, RenderVertex, ShaderType
 };
 
 #[derive(Debug)]
@@ -18,12 +14,8 @@ pub struct ObjPipeline {
   pub objects: Vec<RenderObject>,
 }
 impl ObjPipeline {
-  pub fn new(device: &Device, target_format: TextureFormat, use_flat_color: bool, use_depth: bool) -> Self {
-    let shader_mod = if use_flat_color {
-      build_shader_module(device, 1, None)
-    } else {
-      build_default_shader_module(device)
-    };
+  pub fn new(device: &Device, target_format: TextureFormat, shader_type: ShaderType, use_depth: bool) -> Self {
+    let shader_mod = build_shader_module(device, shader_type);
     let bind_group0_layout = build_default_bind_group_layout(device);
     let bind_group_container: Vec<&BindGroupLayout> = vec![&bind_group0_layout];
 
@@ -166,6 +158,74 @@ impl ObjPipeline {
         anim_buffer.extend_from_slice(&a);
       }
       queue.write_buffer(&obj.buffers0[1], 0, bytemuck::cast_slice(&anim_buffer));
+    }
+  }
+  pub fn replace_texture(&mut self, device: &Device, object_idx: usize, slot: u8, texture: Texture) {
+    if object_idx >= self.objects.len() {
+      println!("ERR: Tried to access an object that doesn't exist {}/{}", object_idx, self.objects.len());
+      return;
+    }
+    let obj = &mut self.objects[object_idx];
+    match slot {
+      2 => {
+        if let Some(tx) = &mut obj.texture2 {
+          tx.destroy();
+        }
+        obj.texture2 = Some(texture);
+      }
+      _ => {
+        if let Some(tx) = &mut obj.texture1 {
+          tx.destroy();
+        }
+        obj.texture1 = Some(texture);
+      }
+    }
+    // replace bind group
+    let (new_bind_group, new_buffers) = build_default_bind_group(device, &self.pipeline, &obj.texture1, &obj.texture2);
+    obj.bind_group0 = new_bind_group;
+    obj.buffers0 = new_buffers;
+  }
+  pub fn replace_vertices(
+    &mut self,
+    device: &Device,
+    queue: &Queue,
+    object_idx: usize,
+    vertices: Vec<RenderVertex>,
+    indices: Option<Vec<u32>>
+  ) {
+    if object_idx >= self.objects.len() {
+      println!("ERR: Tried to access an object that doesn't exist {}/{}", object_idx, self.objects.len());
+      return;
+    }
+    let obj = &mut self.objects[object_idx];
+    // create vertex buffer
+    let vlen = vertices.len();
+    let v_buffer = device.create_buffer(&BufferDescriptor {
+      label: Some("vertex-buffer"),
+      size: (std::mem::size_of::<RenderVertex>() * vlen) as u64,
+      usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+      mapped_at_creation: false
+    });
+    queue.write_buffer(&v_buffer, 0, bytemuck::cast_slice(&vertices));
+    obj.v_buffer = v_buffer;
+    obj.v_count = vlen;
+
+    // create index buffer
+    if let Some(idcs) = indices {
+      let mut index_buffer: Option<Buffer> = None;
+      let ilen: usize = idcs.len();
+      if ilen > 0 {
+        let i_buffer = device.create_buffer(&BufferDescriptor {
+          label: Some("index-buffer"),
+          size: (std::mem::size_of::<u32>() * ilen) as u64,
+          usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+          mapped_at_creation: false
+        });
+        queue.write_buffer(&i_buffer, 0, bytemuck::cast_slice(&idcs));
+        index_buffer = Some(i_buffer);
+      }
+      obj.index_buffer = index_buffer;
+      obj.index_count = ilen as u32;
     }
   }
   pub fn render(&self, pass: &mut RenderPass) {
