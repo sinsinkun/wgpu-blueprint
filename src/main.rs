@@ -13,7 +13,7 @@ use render::{
 
 #[derive(Debug)]
 pub struct App {
-  obj_pipe: Option<ObjPipeline>,
+  overlay: Option<ObjPipeline>,
   camera: RenderCamera,
   text_engine: TextEngine,
   refresh_timeout: f32,
@@ -24,20 +24,20 @@ impl App {
     self.refresh_timeout += sys.time_delta_sec();
     if self.refresh_timeout > 1.0 {
       self.refresh_timeout = 0.0;
-      if let Some(objp) = &mut self.obj_pipe {
+      if let Some(objp) = &mut self.overlay {
         let txt = format!("FPS: {:.2}", sys.fps());
         let word_tx = self.text_engine.create_texture(
           &gpu.device, &gpu.queue, &txt,
-          40.0, RenderColor::rgb(40, 200, 0).into(), Some(200.0), Some(60.0)
+          26.0, RenderColor::rgb(40, 200, 0).into(), Some(150.0), Some(30.0)
         );
         objp.replace_texture(&gpu.device, 0, 1, word_tx);
       }
     }
 
     // update fps position
-    if let Some(p) = &mut self.obj_pipe {
+    if let Some(p) = &mut self.overlay {
       p.update_object(0, &gpu.queue, RenderObjectUpdate::default()
-        .with_position(vec3f!(51.0 - sys.win_center().x, sys.win_center().y - 16.0, 0.0))
+        .with_position(vec3f!(76.0 - sys.win_center().x, sys.win_center().y - 16.0, 0.0))
         .with_camera(&self.camera)
       );
     }
@@ -47,7 +47,7 @@ impl App {
 impl AppBase for App {
   fn new() -> Self {
     Self {
-      obj_pipe: None,
+      overlay: None,
       camera: RenderCamera::default(),
       text_engine: TextEngine::new(),
       refresh_timeout: 2.0,
@@ -57,14 +57,14 @@ impl AppBase for App {
     println!("Hello world");
     self.camera = RenderCamera::new_ortho(1.0, 1000.0, sys.win_size());
     let mut objp = ObjPipeline::new(&gpu.device, gpu.screen_format, ShaderType::Overlay, false);
-    let (verts1, index1) = Primitives::rect_indexed(100.0, 30.0, 0.0);
+    let (verts1, index1) = Primitives::rect_indexed(150.0, 30.0, 0.0);
     objp.add_object(&gpu.device, &gpu.queue, RenderObjectSetup {
       vertex_data: verts1,
       indices: index1,
       camera: Some(&self.camera),
       ..Default::default()
     });
-    self.obj_pipe = Some(objp);
+    self.overlay = Some(objp);
   }
   fn resize(&mut self, _sys: &mut SystemAccess, gpu: &mut GpuAccess, width: u32, height: u32) {
     gpu.resize_screen(width, height);
@@ -95,7 +95,7 @@ impl AppBase for App {
             })],
             ..Default::default()
           });
-          if let Some(p) = &self.obj_pipe { p.render(&mut pass); }
+          if let Some(p) = &self.overlay { p.render(&mut pass); }
         }
         gpu.end_render(encoder, surface);
       }
@@ -113,9 +113,9 @@ impl AppBase for App {
     }
   }
   fn cleanup(&mut self) {
-    if let Some(p) = &mut self.obj_pipe {
+    if let Some(p) = &mut self.overlay {
       p.destroy();
-      self.obj_pipe = None;
+      self.overlay = None;
     }
     println!("Goodbye");
   }

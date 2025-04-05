@@ -1,4 +1,5 @@
 @group(0) @binding(0) var<uniform> mvp: MVP;
+@group(0) @binding(1) var<uniform> bg_color: vec4f;
 @group(0) @binding(2) var tx_sampler: sampler;
 @group(0) @binding(3) var texture1: texture_2d<f32>;
 
@@ -32,9 +33,7 @@ fn vertex_main(input: VertIn) -> VertOut {
 
 @fragment
 fn fragment_main(input: VertOut) -> @location(0) vec4f {
-  var tx = textureSample(texture1, tx_sampler, input.uv);
-  if (tx.a < 0.0001) {
-    discard;
-  }
-  return tx;
+  let tx = textureSample(texture1, tx_sampler, input.uv);
+  let blend = mix(bg_color, tx, tx.a);
+  return vec4f(blend.rgb, blend.a + tx.a);
 }
