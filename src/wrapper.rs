@@ -104,6 +104,8 @@ pub struct SystemAccess {
 	last_frame: Instant,
   window_size: (u32, u32),
 	pub debug: bool,
+	cur_scene: usize,
+	pub next_scene: usize,
 	exit: bool,
 }
 #[allow(dead_code)]
@@ -137,7 +139,7 @@ impl SystemAccess {
 }
 
 #[allow(unused)]
-pub trait AppBase {
+pub trait SceneBase {
 	/// create initial app state (without winit or wgpu assets)
 	fn new() -> Self where Self: Sized;
 	/// actions to take on initialization (after window creation + gpu is successful)
@@ -149,9 +151,9 @@ pub trait AppBase {
   /// actions to take after exiting event loop
 	fn cleanup(&mut self) {}
 }
-impl std::fmt::Debug for dyn AppBase {
+impl std::fmt::Debug for dyn SceneBase {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "AppBase{{Unknown}}")
+		write!(f, "SceneBase{{Unknown}}")
 	}
 }
 
@@ -184,17 +186,17 @@ impl Default for WinitConfig {
 }
 
 #[derive(Debug)]
-struct WinitApp<'a, T> {
+struct WinitApp<'a> {
 	wait_duration: Duration,
 	window_attributes: WindowAttributes,
 	gpu: Option<GpuAccess<'a>>,
 	windows: HashMap<WindowId, Arc<Window>>,
 	// custom app definition
 	sys: SystemAccess,
-	app: T,
+	scenes: Vec<Box<dyn SceneBase>>,
 }
-impl<'a, T: AppBase> WinitApp<'a, T> {
-  fn new(config: WinitConfig, app: T) -> Self {
+impl<'a> WinitApp<'a> {
+  fn new(config: WinitConfig, scenes: Vec<Box<dyn SceneBase>>) -> Self {
 		// convert fps to wait duration
 		let mms = if let Some(n) = config.max_fps { 1000000 / n } else { 0 };
 		// create window attributes
@@ -224,6 +226,8 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 			last_frame: Instant::now(),
 			window_size: config.size,
 			debug: config.debug,
+			cur_scene: 0,
+			next_scene: 0,
 			exit: false,
 		};
     Self {
@@ -232,7 +236,7 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 			gpu: None,
 			windows: HashMap::new(),
 			sys,
-			app,
+			scenes,
     }
   }
 	fn cur_window(&self, id: &WindowId) -> Option<&Arc<Window>> {
@@ -311,7 +315,7 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 		});
 	}
 }
-impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
+impl<'a> ApplicationHandler for WinitApp<'a> {
   // initialization
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		if self.gpu.is_some() {
@@ -332,7 +336,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 					println!("Successfully launched window {:?}", window_handle.id());
 				}
 				self.windows.insert(window_handle.id(), window_handle);
-				self.app.init(&mut self.sys, self.gpu.as_mut().unwrap());
+				for scene in &mut self.scenes {
+					scene.init(&mut self.sys, self.gpu.as_mut().unwrap());
+				}
 			}
 			Err(e) => {
 				println!("Failed to create window: {}", e);
@@ -365,7 +371,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 					println!("Resized window {:?} - ({}, {})", win_id, phys_size.width, phys_size.height);
 				}
 				if let Some(r) = &mut self.gpu {
-					self.app.resize(&mut self.sys, r, phys_size.width, phys_size.height);
+					if self.sys.cur_scene < self.scenes.len() {
+						self.scenes[self.sys.cur_scene].resize(&mut self.sys, r, phys_size.width, phys_size.height);
+					}
 				}
 			}
 			WindowEvent::KeyboardInput { event: KeyEvent { physical_key: key, state, repeat, .. }, .. } => {
@@ -436,10 +444,23 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				// app  update actions
 				if let Some(r) = &mut self.gpu {
 					self.sys.mouse_cache.frame_sync();
-					self.app.update(&mut self.sys, r);
+					if self.sys.cur_scene < self.scenes.len() {
+						self.scenes[self.sys.cur_scene].update(&mut self.sys, r);
+					}
+					// respond to app requests
+					if self.sys.exit { event_loop.exit(); }
+					if self.sys.next_scene != self.sys.cur_scene {
+						if self.sys.debug {
+							println!("Changing scenes {} -> {}", self.sys.cur_scene, self.sys.next_scene);
+						}
+						self.sys.cur_scene = self.sys.next_scene;
+						if self.sys.cur_scene < self.scenes.len() {
+							let w = self.sys.window_size.0;
+							let h = self.sys.window_size.1;
+							self.scenes[self.sys.cur_scene].resize(&mut self.sys, r, w, h);
+						}
+					}
 				}
-				// respond to app requests
-				if self.sys.exit { event_loop.exit(); }
 
 				// clean up input cache
 				let mut rm_k: Vec<KeyCode> = Vec::new();
@@ -480,7 +501,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	}
 	// clean up (if necessary)
 	fn exiting(&mut self, _evt_loop: &ActiveEventLoop) {
-		self.app.cleanup();
+		for scene in &mut self.scenes {
+			scene.cleanup();
+		}
 		if let Some(r) = &self.gpu {
 			r.device.destroy();
 		}
@@ -490,13 +513,13 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	}
 }
 
-pub fn launch<T: AppBase>(config: WinitConfig, app: T) {
+pub fn launch(config: WinitConfig, scenes: Vec<Box<dyn SceneBase>>) {
 	let event_loop = EventLoop::new().unwrap();
 	match config.max_fps {
 		Some(_) => event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now())),
 		None => event_loop.set_control_flow(ControlFlow::Poll)
 	};
-  let mut winit_app = WinitApp::new(config, app);
+  let mut winit_app = WinitApp::new(config, scenes);
   match event_loop.run_app(&mut winit_app) {
 		Ok(_) => (),
 		Err(e) => println!("Winit closed unexpectedly - {}", e.to_string()),
