@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use wgpu::{ Device, Queue, Surface, SurfaceConfiguration, TextureFormat };
+use wgpu::{ CommandEncoder, Device, Instance, Queue, Surface, SurfaceConfiguration, SurfaceError, SurfaceTexture, TextureFormat };
 use winit::{
   application::ApplicationHandler,
-  dpi::{PhysicalSize, PhysicalPosition},
+  dpi::PhysicalSize,
   event::{Ime, KeyEvent, MouseButton, MouseScrollDelta, StartCause, WindowEvent},
   event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
 	keyboard::{PhysicalKey, KeyCode},
@@ -18,48 +18,14 @@ use crate::utils::Vec2;
 // --- --- ---- APP SETUP ---- --- --- //
 // --- --- --- --- --- --- --- --- --- //
 
+#[allow(unused)]
 #[derive(Debug)]
-pub struct GpuAccess<'a> {
+pub struct GpuAccess {
+	instance: Instance,
 	pub device: Device,
 	pub queue: Queue,
-	pub screen_surface: Surface<'a>,
 	pub screen_config: SurfaceConfiguration,
 	pub screen_format: TextureFormat,
-}
-#[allow(unused)]
-impl GpuAccess<'_> {
-	pub fn begin_render(&mut self) -> Result<(wgpu::CommandEncoder, wgpu::SurfaceTexture), wgpu::SurfaceError> {
-		let output = self.screen_surface.get_current_texture()?;
-		let encoder = self.device.create_command_encoder(
-      &wgpu::CommandEncoderDescriptor { label: Some("render-encoder") }
-    );
-		Ok((encoder, output))
-	}
-	pub fn clear(&self, encoder: &mut wgpu::CommandEncoder, surface: &wgpu::SurfaceTexture, color: Option<wgpu::Color>) {
-		let clear_color = color.unwrap_or(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0});
-    let target = surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
-		let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-			label: Some("clear-render"),
-			color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-				view: &target,
-				resolve_target: None,
-				ops: wgpu::Operations {
-					load: wgpu::LoadOp::Clear(clear_color),
-					store: wgpu::StoreOp::Store
-				}
-			})],
-			..Default::default()
-		});
-	}
-	pub fn end_render(&self, encoder: wgpu::CommandEncoder, surface: wgpu::SurfaceTexture) {
-		self.queue.submit(std::iter::once(encoder.finish()));
-		surface.present();
-	}
-	pub fn resize_screen(&mut self, width: u32, height: u32) {
-		self.screen_config.width = width;
-		self.screen_config.height = height;
-		self.screen_surface.configure(&self.device, &self.screen_config);
-	}
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -105,6 +71,7 @@ pub struct SystemAccess {
   window_size: (u32, u32),
 	pub debug: bool,
 	exit: bool,
+	new_window: i32,
 }
 #[allow(dead_code)]
 impl SystemAccess {
@@ -134,24 +101,68 @@ impl SystemAccess {
 	pub fn request_exit(&mut self) {
 		self.exit = true;
 	}
+	pub fn request_new_window(&mut self, scene: i32) {
+		self.new_window = scene;
+	}
 }
 
 #[allow(unused)]
-pub trait AppBase {
+pub trait SceneBase {
 	/// create initial app state (without winit or wgpu assets)
 	fn new() -> Self where Self: Sized;
 	/// actions to take on initialization (after window creation + gpu is successful)
-	fn init(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess);
+	fn init(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess);
 	/// actions to take when screen resizes (asynchronous with update call)
-	fn resize(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess, width: u32, height: u32) {}
+	fn resize(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess, screen: &Surface, width: u32, height: u32) {
+		let mut new_config = gpu.screen_config.clone();
+    new_config.width = width;
+    new_config.height = height;
+    screen.configure(&gpu.device, &new_config);
+	}
 	/// actions to take per frame
-	fn update(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess);
+	fn update(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess, screen: &Surface);
   /// actions to take after exiting event loop
 	fn cleanup(&mut self) {}
+	// -- -- -- -- -- -- -- -- -- //
+	// -- -- render helpers -- -- //
+	// -- -- -- -- -- -- -- -- -- //
+	fn begin_render(&self, device: &Device, screen: &Surface) -> Result<(CommandEncoder, SurfaceTexture), SurfaceError> {
+		let output = screen.get_current_texture()?;
+		let encoder = device.create_command_encoder(
+			&wgpu::CommandEncoderDescriptor { label: Some("render-encoder") }
+		);
+		Ok((encoder, output))
+	}
+	fn end_render(&self, queue: &Queue, encoder: CommandEncoder, screen: SurfaceTexture) {
+		queue.submit(std::iter::once(encoder.finish()));
+		screen.present();
+	}
+	fn clear_screen(&self, encoder: &mut CommandEncoder, screen: &SurfaceTexture, color: Option<wgpu::Color>) {
+		let clear_color = color.unwrap_or(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0});
+    let target = screen.texture.create_view(&wgpu::TextureViewDescriptor::default());
+		let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+			label: Some("clear-render"),
+			color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+				view: &target,
+				resolve_target: None,
+				ops: wgpu::Operations {
+					load: wgpu::LoadOp::Clear(clear_color),
+					store: wgpu::StoreOp::Store
+				}
+			})],
+			..Default::default()
+		});
+	}
+	fn resize_screen(&self, gpu: &GpuAccess, screen: &Surface, width: u32, height: u32) {
+		let mut new_config = gpu.screen_config.clone();
+    new_config.width = width;
+    new_config.height = height;
+    screen.configure(&gpu.device, &new_config);
+	}
 }
-impl std::fmt::Debug for dyn AppBase {
+impl std::fmt::Debug for dyn SceneBase {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "AppBase{{Unknown}}")
+		write!(f, "SceneBase{{Unknown}}")
 	}
 }
 
@@ -184,62 +195,15 @@ impl Default for WinitConfig {
 }
 
 #[derive(Debug)]
-struct WinitApp<'a, T> {
-	wait_duration: Duration,
-	window_attributes: WindowAttributes,
-	gpu: Option<GpuAccess<'a>>,
-	windows: HashMap<WindowId, Arc<Window>>,
-	// custom app definition
-	sys: SystemAccess,
-	app: T,
+struct WindowContainer<'a> {
+	id: WindowId,
+	surface: Surface<'a>,
+	window: Arc<Window>,
+	active_scene: i32,
 }
-impl<'a, T: AppBase> WinitApp<'a, T> {
-  fn new(config: WinitConfig, app: T) -> Self {
-		// convert fps to wait duration
-		let mms = if let Some(n) = config.max_fps { 1000000 / n } else { 0 };
-		// create window attributes
-		let icon = match &config.icon {
-			Some(str) => {
-				match Icon::from_path(str, None) {
-					Ok(ico) => Some(ico),
-					Err(e) => {
-						println!("Failed to open icon: {:?}", e);
-						None
-					}
-				}
-			},
-			None => None
-		};
-		let window_attributes = Window::default_attributes()
-			.with_min_inner_size(PhysicalSize::new(config.min_size.0, config.min_size.1))
-			.with_inner_size(PhysicalSize::new(config.size.0, config.size.1))
-			.with_resizable(config.resizable)
-			.with_window_icon(icon)
-			.with_title(config.title.as_str());
-		// create shared data between winit and user app
-		let sys = SystemAccess {
-			input_cache: HashMap::new(),
-			mouse_cache: MouseState::new(),
-			frame_delta: Duration::from_micros(0),
-			last_frame: Instant::now(),
-			window_size: config.size,
-			debug: config.debug,
-			exit: false,
-		};
-    Self {
-			window_attributes,
-			wait_duration: Duration::from_micros(mms.into()),
-			gpu: None,
-			windows: HashMap::new(),
-			sys,
-			app,
-    }
-  }
-	fn cur_window(&self, id: &WindowId) -> Option<&Arc<Window>> {
-		self.windows.get(id)
-	}
-	async fn wgpu_init(&mut self, win: Arc<Window>) {
-		let size = win.inner_size();
+impl WindowContainer<'_> {
+	async fn new_root(window: Arc<Window>, gpu_passback: &mut Option<GpuAccess>) -> Self {
+		let size = window.inner_size();
 
 		// The instance is a handle to our GPU
     // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -247,9 +211,9 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 			backends: wgpu::Backends::PRIMARY,
 			..Default::default()
 		});
-    let surface = instance.create_surface(win).unwrap();
+    let surface = instance.create_surface(window.clone()).unwrap();
 
-    // handle for graphics card
+		// handle for graphics card
     let adapter = instance.request_adapter(
       &wgpu::RequestAdapterOptions {
 				power_preference: wgpu::PowerPreference::default(),
@@ -282,10 +246,6 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
 				.unwrap_or(surface_caps.formats[0])
 		};
 
-		if self.sys.debug {
-			println!("Surface format: {:?}", surface_format);
-		}
-
 		let config = SurfaceConfiguration {
       usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
       format: surface_format,
@@ -296,22 +256,107 @@ impl<'a, T: AppBase> WinitApp<'a, T> {
       view_formats: vec![],
       desired_maximum_frame_latency: 2,
     };
-		// invoked via resize call
-		// surface.configure(&device, &config);
+		surface.configure(&device, &config);
 
-		if self.sys.debug {
-			println!("Sucessfully linked gpu: {:?}", adapter.get_info());
-		}
-		self.gpu = Some(GpuAccess {
+		*gpu_passback = Some(GpuAccess {
+			instance,
 			device,
 			queue,
-			screen_surface: surface,
 			screen_config: config,
 			screen_format: surface_format,
 		});
+
+		Self {
+			id: window.id(),
+			surface,
+			window,
+			active_scene: 0,
+		}
+	}
+	fn new(
+		window: Arc<Window>,
+		instance: &Instance,
+		device: &Device,
+		config: &SurfaceConfiguration,
+		scene: Option<i32>,
+	) -> Self {
+		let surface = instance.create_surface(window.clone()).unwrap();
+		surface.configure(device, config);
+		
+		let active_scene = match scene {
+			Some(n) => n,
+			None => -1
+		};
+
+		Self {
+			id: window.id(),
+			surface,
+			window,
+			active_scene,
+		}
+	}
+	fn change_scene(&mut self, scene: i32) {
+		self.active_scene = scene;
 	}
 }
-impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
+
+#[derive(Debug)]
+struct WinitApp<'a, 'b> {
+	wait_duration: Duration,
+	window_attributes: WindowAttributes,
+	gpu: Option<GpuAccess>,
+	primary_window: Option<WindowContainer<'a>>,
+	windows: HashMap<WindowId, WindowContainer<'b>>,
+	// custom app definition
+	sys: SystemAccess,
+	scenes: Vec<Box<dyn SceneBase>>,
+}
+impl WinitApp<'_, '_> {
+  fn new(config: WinitConfig, scenes: Vec<Box<dyn SceneBase>>) -> Self {
+		// convert fps to wait duration
+		let mms = if let Some(n) = config.max_fps { 1000000 / n } else { 0 };
+		// create window attributes
+		let icon = match &config.icon {
+			Some(str) => {
+				match Icon::from_path(str, None) {
+					Ok(ico) => Some(ico),
+					Err(e) => {
+						println!("Failed to open icon: {:?}", e);
+						None
+					}
+				}
+			},
+			None => None
+		};
+		let window_attributes = Window::default_attributes()
+			.with_min_inner_size(PhysicalSize::new(config.min_size.0, config.min_size.1))
+			.with_inner_size(PhysicalSize::new(config.size.0, config.size.1))
+			.with_resizable(config.resizable)
+			.with_window_icon(icon)
+			.with_title(config.title.as_str());
+		// create shared data between winit and user app
+		let sys = SystemAccess {
+			input_cache: HashMap::new(),
+			mouse_cache: MouseState::new(),
+			frame_delta: Duration::from_micros(0),
+			last_frame: Instant::now(),
+			window_size: config.size,
+			debug: config.debug,
+			exit: false,
+			new_window: -1,
+		};
+    Self {
+			window_attributes,
+			wait_duration: Duration::from_micros(mms.into()),
+			gpu: None,
+			primary_window: None,
+			windows: HashMap::new(),
+			sys,
+			scenes,
+    }
+  }
+}
+impl ApplicationHandler for WinitApp<'_, '_> {
   // initialization
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		if self.gpu.is_some() {
@@ -327,12 +372,13 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			Ok(win) => {
 				win.set_ime_allowed(true);
 				let window_handle = Arc::new(win);
-				pollster::block_on(self.wgpu_init(window_handle.clone()));
+				self.primary_window = Some(pollster::block_on(WindowContainer::new_root(window_handle, &mut self.gpu)));
 				if self.sys.debug {
-					println!("Successfully launched window {:?}", window_handle.id());
+					println!("Successfully launched primary window");
 				}
-				self.windows.insert(window_handle.id(), window_handle);
-				self.app.init(&mut self.sys, self.gpu.as_mut().unwrap());
+				for scene in &mut self.scenes {
+					scene.init(&mut self.sys, self.gpu.as_ref().unwrap());
+				}
 			}
 			Err(e) => {
 				println!("Failed to create window: {}", e);
@@ -347,8 +393,11 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 		self.sys.frame_delta = now - self.sys.last_frame;
 		if self.sys.frame_delta > self.wait_duration {
 			self.sys.last_frame = now;
+			if let Some(win) = &self.primary_window {
+				win.window.request_redraw();
+			}
 			for win in &self.windows {
-				win.1.request_redraw();
+				win.1.window.request_redraw();
 			}
 		}
   }
@@ -356,8 +405,20 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	fn window_event(&mut self, event_loop: &ActiveEventLoop, win_id: WindowId, event: WindowEvent) {
 		match event {
 			WindowEvent::CloseRequested => {
+				if self.sys.debug {
+					println!("Close requested for window: {:?}", win_id);
+				}
 				// close if window is closed externally
-				event_loop.exit();
+				match &self.primary_window {
+					Some(win) => {
+						if win.id == win_id {
+							event_loop.exit();
+						} else {
+							self.windows.remove(&win_id);
+						}
+					}
+					None => ()
+				}
 			}
 			WindowEvent::Resized( phys_size, .. ) => {
 				self.sys.window_size = phys_size.into();
@@ -365,7 +426,25 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 					println!("Resized window {:?} - ({}, {})", win_id, phys_size.width, phys_size.height);
 				}
 				if let Some(r) = &mut self.gpu {
-					self.app.resize(&mut self.sys, r, phys_size.width, phys_size.height);
+					match &self.primary_window {
+						Some(win) => {
+							let scene_id = win.active_scene as usize;
+							if scene_id < self.scenes.len() {
+								self.scenes[scene_id as usize].update(&mut self.sys, r, &win.surface);
+							}
+						}
+						None => {
+							match self.windows.get(&win_id) {
+								Some(win) => {
+									let scene_id = win.active_scene;
+									if scene_id < 0 { return; }
+									let scene_id = scene_id as usize;
+									self.scenes[scene_id as usize].resize(&mut self.sys, r, &win.surface, phys_size.width, phys_size.height);
+								},
+								None => ()
+							}
+						}
+					}
 				}
 			}
 			WindowEvent::KeyboardInput { event: KeyEvent { physical_key: key, state, repeat, .. }, .. } => {
@@ -419,12 +498,9 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 				match ime {
 					Ime::Enabled => {
 						println!("Enabled IME inputs");
-						let pos: PhysicalPosition<f32> = self.sys.mouse_cache.position.as_array().into();
-						let size = PhysicalSize::new(100, 100);
-						match self.cur_window(&win_id) {
-							Some(w) => w.set_ime_cursor_area(pos, size),
-							None => println!("ERR: Could not find window for IME")
-						}
+						// let pos: PhysicalPosition<f32> = self.sys.mouse_cache.position.as_array().into();
+						// let size = PhysicalSize::new(100, 100);
+						// set_ime_cursor_area(pos, size)
 					}
 					Ime::Commit(chr) => {
 						println!("Committing character {chr}");
@@ -434,12 +510,51 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 			}
 			WindowEvent::RedrawRequested => {
 				// app  update actions
-				if let Some(r) = &mut self.gpu {
+				if let Some(r) = &self.gpu {
 					self.sys.mouse_cache.frame_sync();
-					self.app.update(&mut self.sys, r);
+					match &self.primary_window {
+						Some(win) => {
+							let scene_id = win.active_scene as usize;
+							if scene_id < self.scenes.len() {
+								self.scenes[scene_id as usize].update(&mut self.sys, r, &win.surface);
+							}
+							// respond to app requests (window specific)
+							if self.sys.exit { event_loop.exit(); }
+						}
+						None => ()
+					}
+					match self.windows.get(&win_id) {
+						Some(win) => {
+							let scene_id = win.active_scene as usize;
+							if scene_id < self.scenes.len() {
+								self.scenes[scene_id as usize].update(&mut self.sys, r, &win.surface);
+							}
+							// respond to app requests (window specific)
+							if self.sys.exit {
+								self.windows.remove(&win_id);
+							}
+						}
+						None => ()
+					}
+					// respond to app requests (non-window specific)
+					if self.sys.new_window > -1 {
+						match event_loop.create_window(self.window_attributes.clone()) {
+							Ok(win) => {
+								let handle = Arc::new(win);
+								let mut window = WindowContainer::new(handle, &r.instance, &r.device, &r.screen_config, None);
+								window.change_scene(self.sys.new_window);
+								self.windows.insert(window.id, window);
+							}
+							Err(e) => {
+								println!("Failed to create new window: {:?}", e);
+							}
+						};
+					}
 				}
-				// respond to app requests
-				if self.sys.exit { event_loop.exit(); }
+
+				// reset flags
+				self.sys.exit = false;
+				self.sys.new_window = -1;
 
 				// clean up input cache
 				let mut rm_k: Vec<KeyCode> = Vec::new();
@@ -480,7 +595,10 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	}
 	// clean up (if necessary)
 	fn exiting(&mut self, _evt_loop: &ActiveEventLoop) {
-		self.app.cleanup();
+		for scene in &mut self.scenes {
+			scene.cleanup();
+		}
+		self.windows.clear();
 		if let Some(r) = &self.gpu {
 			r.device.destroy();
 		}
@@ -490,13 +608,13 @@ impl<'a, T: AppBase> ApplicationHandler for WinitApp<'a, T> {
 	}
 }
 
-pub fn launch<T: AppBase>(config: WinitConfig, app: T) {
+pub fn launch(config: WinitConfig, scenes: Vec<Box<dyn SceneBase>>) {
 	let event_loop = EventLoop::new().unwrap();
 	match config.max_fps {
 		Some(_) => event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now())),
 		None => event_loop.set_control_flow(ControlFlow::Poll)
 	};
-  let mut winit_app = WinitApp::new(config, app);
+  let mut winit_app = WinitApp::new(config, scenes);
   match event_loop.run_app(&mut winit_app) {
 		Ok(_) => (),
 		Err(e) => println!("Winit closed unexpectedly - {}", e.to_string()),
