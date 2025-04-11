@@ -1,10 +1,10 @@
-use wgpu::{Surface, SurfaceError};
+use wgpu::SurfaceError;
 use winit::keyboard::KeyCode;
 
 use crate::{
   vec2f, vec3f,
   utils::{Vec2, Vec3},
-  wrapper::{GpuAccess, MKBState, SceneBase, SystemAccess},
+  wrapper::{GpuAccess, MKBState, SceneBase, SystemAccess, WindowContainer},
   render::{
     ObjPipeline, Primitives, RenderCamera, RenderColor, RenderObjectSetup,
     RenderObjectUpdate, ShaderType, TextEngine
@@ -19,7 +19,7 @@ pub struct Scene1 {
   refresh_timeout: f32,
 }
 impl Scene1 {
-  fn update_fps(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess) {
+  fn update_fps(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess, win_center: Vec2) {
     // update fps text
     self.refresh_timeout += sys.time_delta_sec();
     if self.refresh_timeout > 1.0 {
@@ -37,7 +37,7 @@ impl Scene1 {
     // update fps position
     if let Some(p) = &mut self.overlay {
       p.update_object(0, &gpu.queue, RenderObjectUpdate::default()
-        .with_position(vec3f!(76.0 - sys.win_center().x, sys.win_center().y - 16.0, 0.0))
+        .with_position(vec3f!(76.0 - win_center.x, win_center.y - 16.0, 0.0))
         .with_camera(&self.camera)
       );
     }
@@ -53,9 +53,9 @@ impl SceneBase for Scene1 {
       refresh_timeout: 2.0,
     }
   }
-  fn init(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess) {
-    println!("Hello world");
-    self.camera = RenderCamera::new_ortho(1.0, 1000.0, sys.win_size());
+  fn init(&mut self, _sys: &mut SystemAccess, gpu: &GpuAccess, window: &WindowContainer) {
+    println!("Hello world 1");
+    self.camera = RenderCamera::new_ortho(1.0, 1000.0, window.win_size_vec2());
     let mut objp = ObjPipeline::new(&gpu.device, gpu.screen_format, ShaderType::Overlay, false);
     let (verts1, index1) = Primitives::rect_indexed(150.0, 30.0, 0.0);
     objp.add_object(&gpu.device, &gpu.queue, RenderObjectSetup {
@@ -66,11 +66,11 @@ impl SceneBase for Scene1 {
     });
     self.overlay = Some(objp);
   }
-  fn resize(&mut self, _sys: &mut SystemAccess, gpu: &GpuAccess, screen: &Surface, width: u32, height: u32) {
-    self.resize_screen(gpu, screen, width, height);
+  fn resize(&mut self, _sys: &mut SystemAccess, gpu: &GpuAccess, window: &WindowContainer, width: u32, height: u32) {
+    self.resize_screen(gpu, window.gpu_surface(), width, height);
     self.camera.target_size = vec2f!(width as f32, height as f32);
   }
-  fn update(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess, screen: &Surface) {
+  fn update(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess, window: &WindowContainer) {
     if sys.kb_inputs().contains_key(&KeyCode::Escape) {
       sys.request_exit();
     }
@@ -79,10 +79,11 @@ impl SceneBase for Scene1 {
     }
 
     // update scene
-    self.update_fps(sys, gpu);
+    let win_center = window.win_size_vec2() * 0.5;
+    self.update_fps(sys, gpu, win_center);
 
     // render
-    match self.begin_render(&gpu.device, screen) {
+    match self.begin_render(&gpu.device, window.gpu_surface()) {
       Ok((mut encoder, surface)) => {
         let target = surface.texture.create_view(&wgpu::TextureViewDescriptor::default());
         {
@@ -104,7 +105,7 @@ impl SceneBase for Scene1 {
       }
       Err(SurfaceError::Lost | SurfaceError::Outdated) => {
         println!("Err: surface was lost or outdated. Attempting to re-connect");
-        self.resize_screen(gpu, screen, sys.win_size().x as u32, sys.win_size().y as u32);
+        self.resize_screen(gpu, window.gpu_surface(), window.win_size().0, window.win_size().1);
       }
       Err(SurfaceError::OutOfMemory) => {
         println!("Err: Out of memory. Exiting");
@@ -120,6 +121,6 @@ impl SceneBase for Scene1 {
       p.destroy();
       self.overlay = None;
     }
-    println!("Goodbye");
+    println!("Goodbye 1");
   }
 }
