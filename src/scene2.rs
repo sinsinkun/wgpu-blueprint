@@ -2,8 +2,7 @@ use wgpu::SurfaceError;
 use winit::keyboard::KeyCode;
 
 use crate::{
-  utils::{Vec2, Vec3},
-  vec2f,
+  utils::Vec3,
   vec3f,
   wrapper::{SceneBase, GpuAccess, MKBState, SystemAccess},
   render::{
@@ -20,7 +19,7 @@ pub struct Scene2 {
   refresh_timeout: f32,
 }
 impl Scene2 {
-  fn update_fps(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess) {
+  fn update_fps(&mut self, sys: &SystemAccess, gpu: &GpuAccess) {
     // update fps text
     self.refresh_timeout += sys.time_delta_sec();
     if self.refresh_timeout > 1.0 {
@@ -67,9 +66,9 @@ impl SceneBase for Scene2 {
     });
     self.overlay = Some(objp);
   }
-  fn resize(&mut self, _sys: &mut SystemAccess, gpu: &mut GpuAccess, width: u32, height: u32) {
+  fn resize(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess, width: u32, height: u32) {
     gpu.resize_screen(width, height);
-    self.camera.target_size = vec2f!(width as f32, height as f32);
+    self.camera.target_size = sys.win_size();
   }
   fn update(&mut self, sys: &mut SystemAccess, gpu: &mut GpuAccess) {
     if sys.kb_inputs().contains_key(&KeyCode::Escape) {
@@ -125,6 +124,5 @@ impl SceneBase for Scene2 {
       p.destroy();
       self.overlay = None;
     }
-    println!("Goodbye");
   }
 }
