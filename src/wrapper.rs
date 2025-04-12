@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use wgpu::{ CommandEncoder, Device, Instance, Queue, Surface, SurfaceConfiguration, SurfaceError, SurfaceTexture, TextureFormat };
+use wgpu::{
+	CommandEncoder, Device, Instance, Queue, Surface, SurfaceConfiguration,
+	SurfaceError, SurfaceTexture, TextureFormat
+};
 use winit::{
   application::ApplicationHandler,
   dpi::PhysicalSize,
@@ -61,7 +64,6 @@ impl MouseState {
   }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct SystemAccess {
 	input_cache: HashMap<KeyCode, MKBState>,
@@ -103,9 +105,11 @@ pub struct WindowContainer<'a> {
 	surface: Surface<'a>,
 	window: Arc<Window>,
 	size: (u32, u32),
-	active_scene: i32,
+	pub active_scene: i32,
 	close_all_on_exit: bool,
+	focus: bool,
 }
+#[allow(unused)]
 impl WindowContainer<'_> {
 	async fn new_root(window: Arc<Window>, gpu_passback: &mut Option<GpuAccess>) -> Self {
 		let size = window.inner_size();
@@ -178,6 +182,7 @@ impl WindowContainer<'_> {
 			size: size.into(),
 			active_scene: 0,
 			close_all_on_exit: true,
+			focus: true,
 		}
 	}
 	fn new(
@@ -203,12 +208,13 @@ impl WindowContainer<'_> {
 			size,
 			active_scene,
 			close_all_on_exit: false,
+			focus: false,
 		}
 	}
-	fn change_scene(&mut self, scene: i32) {
-		self.active_scene = scene;
-	}
 	// app accessors
+	pub fn is_focused(&self) -> bool {
+		self.focus
+	}
 	pub fn gpu_surface(&self) -> &Surface {
 		&self.surface
 	}
@@ -234,7 +240,7 @@ pub trait SceneBase {
     window.gpu_surface().configure(&gpu.device, &new_config);
 	}
 	/// actions to take per frame
-	fn update(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess, window: &WindowContainer);
+	fn update(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess, window: &mut WindowContainer);
   /// actions to take after exiting event loop
 	fn cleanup(&mut self) {}
 	// -- -- -- -- -- -- -- -- -- //
@@ -305,6 +311,31 @@ impl Default for WinitConfig {
 			debug: false,
 			resizable: true,
 		}
+	}
+}
+
+fn clean_inputs(kb_cache: &mut HashMap<KeyCode, MKBState>, mouse_cache: &mut MouseState) {
+	// clean up input cache
+	let mut rm_k: Vec<KeyCode> = Vec::new();
+	for k in kb_cache.iter_mut() {
+		if *k.1 == MKBState::Pressed { *k.1 = MKBState::Down; }
+		else if *k.1 == MKBState::Released { rm_k.push(*k.0); }
+	}
+	for k in rm_k {
+		kb_cache.remove(&k);
+	}
+
+	// clean up mouse cache
+	mouse_cache.scroll = 0.0;
+	if mouse_cache.left == MKBState::Pressed {
+		mouse_cache.left = MKBState::Down;
+	} else if mouse_cache.left == MKBState::Released {
+		mouse_cache.left = MKBState::None;
+	}
+	if mouse_cache.right == MKBState::Pressed {
+		mouse_cache.right = MKBState::Down;
+	} else if mouse_cache.right == MKBState::Released {
+		mouse_cache.right = MKBState::None;
 	}
 }
 
@@ -439,6 +470,14 @@ impl ApplicationHandler for WinitApp<'_> {
 					}
 				}
 			}
+			WindowEvent::Focused(is_focused) => {
+				if let Some(win) = self.windows.get_mut(&win_id) {
+					if is_focused && self.sys.debug {
+						println!("{:?} gained focus", win_id);
+					}
+					win.focus = is_focused;
+				}
+			}
 			WindowEvent::KeyboardInput { event: KeyEvent { physical_key: key, state, repeat, .. }, .. } => {
 				// add key to input cache
 				if let PhysicalKey::Code(x) = key {
@@ -503,11 +542,18 @@ impl ApplicationHandler for WinitApp<'_> {
 			WindowEvent::RedrawRequested => {
 				// app  update actions
 				if let Some(r) = &self.gpu {
-					self.sys.mouse_cache.frame_sync();
-					if let Some(win) = self.windows.get(&win_id) {
+					if let Some(win) = self.windows.get_mut(&win_id) {
+						if win.focus {
+							self.sys.mouse_cache.frame_sync();
+						}
 						let scene_id = win.active_scene as usize;
 						if scene_id < self.scenes.len() {
-							self.scenes[scene_id as usize].update(&mut self.sys, r, &win);
+							self.scenes[scene_id as usize].update(&mut self.sys, r, win);
+						}
+
+						// clean up input cache (on active window)
+						if win.is_focused() {
+							clean_inputs(&mut self.sys.input_cache, &mut self.sys.mouse_cache);
 						}
 
 						// respond to app requests
@@ -521,7 +567,7 @@ impl ApplicationHandler for WinitApp<'_> {
 								Ok(win) => {
 									let handle = Arc::new(win);
 									let mut window = WindowContainer::new(handle, &r.instance, &r.device, &r.screen_config, None);
-									window.change_scene(self.sys.new_window);
+									window.active_scene = self.sys.new_window;
 									self.windows.insert(window.id, window);
 								}
 								Err(e) => {
@@ -535,29 +581,6 @@ impl ApplicationHandler for WinitApp<'_> {
 				// reset flags
 				self.sys.exit = false;
 				self.sys.new_window = -1;
-
-				// clean up input cache
-				let mut rm_k: Vec<KeyCode> = Vec::new();
-				for k in &mut self.sys.input_cache.iter_mut() {
-					if *k.1 == MKBState::Pressed { *k.1 = MKBState::Down; }
-					else if *k.1 == MKBState::Released { rm_k.push(*k.0); }
-				}
-				for k in rm_k {
-					self.sys.input_cache.remove(&k);
-				}
-
-				// clean up mouse cache
-				self.sys.mouse_cache.scroll = 0.0;
-				if self.sys.mouse_cache.left == MKBState::Pressed {
-					self.sys.mouse_cache.left = MKBState::Down;
-				} else if self.sys.mouse_cache.left == MKBState::Released {
-					self.sys.mouse_cache.left = MKBState::None;
-				}
-				if self.sys.mouse_cache.right == MKBState::Pressed {
-					self.sys.mouse_cache.right = MKBState::Down;
-				} else if self.sys.mouse_cache.right == MKBState::Released {
-					self.sys.mouse_cache.right = MKBState::None;
-				}
 
 				// wait until
 				if self.wait_duration > Duration::from_micros(0) {

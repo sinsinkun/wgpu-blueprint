@@ -14,7 +14,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Scene2 {
   overlay: Option<ObjPipeline>,
-  camera: RenderCamera,
+  overlay_camera: RenderCamera,
   text_engine: TextEngine,
   refresh_timeout: f32,
 }
@@ -38,7 +38,7 @@ impl Scene2 {
     if let Some(p) = &mut self.overlay {
       p.update_object(0, &gpu.queue, RenderObjectUpdate::default()
         .with_position(vec3f!(76.0 - win_center.x, win_center.y - 16.0, 0.0))
-        .with_camera(&self.camera)
+        .with_camera(&self.overlay_camera)
       );
     }
 
@@ -48,34 +48,38 @@ impl SceneBase for Scene2 {
   fn new() -> Self {
     Self {
       overlay: None,
-      camera: RenderCamera::default(),
+      overlay_camera: RenderCamera::default(),
       text_engine: TextEngine::new(),
       refresh_timeout: 2.0,
     }
   }
   fn init(&mut self, _sys: &mut SystemAccess, gpu: &GpuAccess, window: &WindowContainer) {
     println!("Hello world 2");
-    self.camera = RenderCamera::new_ortho(1.0, 1000.0, window.win_size_vec2());
+    self.overlay_camera = RenderCamera::new_ortho(1.0, 1000.0, window.win_size_vec2());
     let mut objp = ObjPipeline::new(&gpu.device, gpu.screen_format, ShaderType::Overlay, false);
     let (verts1, index1) = Primitives::rect_indexed(150.0, 30.0, 0.0);
     objp.add_object(&gpu.device, &gpu.queue, RenderObjectSetup {
       vertex_data: verts1,
       indices: index1,
-      camera: Some(&self.camera),
+      camera: Some(&self.overlay_camera),
       ..Default::default()
     });
     self.overlay = Some(objp);
   }
   fn resize(&mut self, _sys: &mut SystemAccess, gpu: &GpuAccess, window: &WindowContainer, width: u32, height: u32) {
     self.resize_screen(gpu, window.gpu_surface(), width, height);
-    self.camera.target_size = vec2f!(width as f32, height as f32);
+    self.overlay_camera.target_size = vec2f!(width as f32, height as f32);
   }
-  fn update(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess, window: &WindowContainer) {
+  fn update(&mut self, sys: &mut SystemAccess, gpu: &GpuAccess, window: &mut WindowContainer) {
     if sys.kb_inputs().contains_key(&KeyCode::Escape) {
       sys.request_exit();
     }
     if sys.kb_inputs().get(&KeyCode::F1) == Some(&MKBState::Released) {
       sys.request_new_window(0);
+    }
+    if sys.kb_inputs().get(&KeyCode::F2) == Some(&MKBState::Released) {
+      println!("change scene to 0");
+      window.active_scene = 0;
     }
 
     // update scene

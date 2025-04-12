@@ -13,6 +13,7 @@ fn main() {
     max_fps: Some(120),
     title: "Re:Blueprint".to_owned(),
     icon: Some("icon.ico".to_owned()),
+    debug: true,
     ..Default::default()
   }, vec![Box::new(Scene1::new()), Box::new(Scene2::new())]);
 }
