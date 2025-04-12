@@ -563,15 +563,25 @@ impl ApplicationHandler for WinitApp<'_> {
 							self.windows.remove(&win_id);
 						}
 						if self.sys.new_window > -1 {
-							match event_loop.create_window(self.window_attributes.clone()) {
-								Ok(win) => {
-									let handle = Arc::new(win);
-									let mut window = WindowContainer::new(handle, &r.instance, &r.device, &r.screen_config, None);
-									window.active_scene = self.sys.new_window;
-									self.windows.insert(window.id, window);
+							// prevent 2 windows with same scene to bypass bug with double updates
+							let mut allow_creation = true;
+							for win in &self.windows {
+								if win.1.active_scene == self.sys.new_window {
+									println!("Cannot create new window - This scene is already active in another window");
+									allow_creation = false;
 								}
-								Err(e) => {
-									println!("Failed to create new window: {:?}", e);
+							}
+							if allow_creation {
+								match event_loop.create_window(self.window_attributes.clone()) {
+									Ok(win) => {
+										let handle = Arc::new(win);
+										let mut window = WindowContainer::new(handle, &r.instance, &r.device, &r.screen_config, None);
+										window.active_scene = self.sys.new_window;
+										self.windows.insert(window.id, window);
+									}
+									Err(e) => {
+										println!("Failed to create new window: {:?}", e);
+									}
 								}
 							}
 						}
