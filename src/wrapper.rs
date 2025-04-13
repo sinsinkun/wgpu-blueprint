@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use wgpu::{ Device, Queue, Surface, SurfaceConfiguration, TextureFormat };
 use winit::{
   application::ApplicationHandler,
-  dpi::{PhysicalSize, PhysicalPosition},
+  dpi::{Position, PhysicalSize, PhysicalPosition},
   event::{Ime, KeyEvent, MouseButton, MouseScrollDelta, StartCause, WindowEvent},
   event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
 	keyboard::{PhysicalKey, KeyCode},
@@ -165,6 +165,7 @@ impl std::fmt::Debug for dyn SceneBase {
 pub struct WinitConfig {
 	pub size: (u32, u32),
 	pub min_size: (u32, u32),
+	pub position: (i32, i32),
 	pub max_fps: Option<u32>,
 	pub title: String,
 	pub icon: Option<String>,
@@ -176,6 +177,7 @@ impl Default for WinitConfig {
 		Self {
 			size: (800, 600),
 			min_size: (400, 300),
+			position: (100, 100),
 			max_fps: None,
 			title: "Blueprint".to_owned(),
 			icon: None,
@@ -217,6 +219,9 @@ impl<'a> WinitApp<'a> {
 			.with_inner_size(PhysicalSize::new(config.size.0, config.size.1))
 			.with_resizable(config.resizable)
 			.with_window_icon(icon)
+			.with_position(Position::Physical(
+				PhysicalPosition { x: config.position.0, y: config.position.1 }
+			))
 			.with_title(config.title.as_str());
 		// create shared data between winit and user app
 		let sys = SystemAccess {
