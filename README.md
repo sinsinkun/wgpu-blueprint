@@ -21,6 +21,8 @@ a generalized crate that can be used as an actual library.
 - in `fn main()`, call `launch(winitConfig, scene_collection)`
 - scene_collection is a `Vec<Box<dyn SceneBase>>` collection of scene structs
 - scenes implementing `SceneBase` will be passed system data and gpu accessors 
+- render pipelines are defined individually for modularity and extensibility
+- useful functions are defined in `utils`, such as vectors and mat4 functions
 
 ```rust
 pub struct TestScene {
